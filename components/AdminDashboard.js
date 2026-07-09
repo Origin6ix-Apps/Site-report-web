@@ -84,10 +84,16 @@ function ProjectsTab({ projects, supervisors, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
   const [drafts, setDrafts] = useState({});
+  const [error, setError] = useState("");
 
   async function createProject() {
     if (!form.name.trim()) return;
-    await supabase.from("projects").insert({ ...form, deadline: form.deadline || null });
+    setError("");
+    const { error: insertError } = await supabase.from("projects").insert({ ...form, deadline: form.deadline || null });
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
     setForm({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
     setShowNew(false);
     onChange();
@@ -194,6 +200,7 @@ function ProjectsTab({ projects, supervisors, onChange }) {
             <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={createProject}>Create project</button>
           </div>
         </div>
