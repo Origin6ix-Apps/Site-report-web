@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("supervisor");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,6 +24,7 @@ export default function LoginPage() {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
+          options: { data: { role } },
         });
         if (signUpError) throw signUpError;
       } else {
@@ -57,6 +59,16 @@ export default function LoginPage() {
         <label className="field-label">Password</label>
         <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
 
+        {mode === "signup" && (
+          <>
+            <label className="field-label">I am a</label>
+            <select className="select-input" value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="supervisor">Supervisor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </>
+        )}
+
         {error && <div className="error-box" style={{ marginTop: 14 }}>{error}</div>}
 
         <button className="btn btn-primary btn-block" disabled={loading} onClick={submit}>
@@ -69,11 +81,12 @@ export default function LoginPage() {
 
         <div className="login-foot">
           {mode === "signup"
-            ? "You'll get access right away. An Admin can adjust your role anytime from Users management."
+            ? "Manager access is assigned separately and isn't self-service — sign up as Admin or Supervisor here."
             : "Contractors and superintendents only — clients view reports via a share link, no login needed."}
         </div>
       </div>
     </div>
   );
 }
+
 
