@@ -70,7 +70,7 @@ export default function AdminDashboard({ user }) {
         <p className="dash-sub">Loading…</p>
       ) : (
         <>
-          {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} onChange={loadAll} />}
+          {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} user={user} onChange={loadAll} />}
           {tab === "employees" && <EmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
           {tab === "attendance" && <AttendanceTab attendance={attendance} />}
           {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
@@ -80,7 +80,7 @@ export default function AdminDashboard({ user }) {
   );
 }
 
-function ProjectsTab({ projects, supervisors, onChange }) {
+function ProjectsTab({ projects, supervisors, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
   const [drafts, setDrafts] = useState({});
@@ -89,7 +89,7 @@ function ProjectsTab({ projects, supervisors, onChange }) {
   async function createProject() {
     if (!form.name.trim()) return;
     setError("");
-    const { error: insertError } = await supabase.from("projects").insert({ ...form, deadline: form.deadline || null });
+    const { error: insertError } = await supabase.from("projects").insert({ ...form, deadline: form.deadline || null, owner_id: user.id });
     if (insertError) {
       setError(insertError.message);
       return;
