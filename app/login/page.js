@@ -89,10 +89,10 @@ function PortalLogin({ portal, onBack }) {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: fullName.trim(), phone: phone.trim() } },
+          options: { data: { full_name: fullName.trim(), phone: phone.trim(), role: portal === "manager" ? "manager" : undefined } },
         });
         if (signUpError) throw signUpError;
-        router.replace("/dashboard");
+        router.replace(portal === "manager" ? "/dashboard?portal=manager" : "/dashboard");
         return;
       }
 
@@ -164,7 +164,9 @@ function PortalLogin({ portal, onBack }) {
 
       <div className="login-foot">
         {mode === "signup"
-          ? "New accounts start as Pending — an Admin or Manager assigns your portal access afterward."
+          ? (portal === "manager"
+              ? "Manager accounts get instant access — no approval needed."
+              : "New accounts start as Pending — an Admin or Manager assigns your portal access afterward.")
           : `Only accounts assigned to ${portalLabel} (or Manager) can sign in here.`}
       </div>
     </div>
