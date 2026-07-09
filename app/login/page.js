@@ -102,13 +102,32 @@ function PortalLogin({ portal, onBack }) {
       });
       if (signInError) throw signInError;
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", signInData.user.id)
-        .single();
+      // Retry the profile fetch a few times before giving up — a transient
+      // network/DB hiccup here should never look like "not authorized".
+      let role = null;
+      let fetchFailed = false;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", signInData.user.id)
+          .single();
+        if (!profileError && profile) {
+          role = profile.role;
+          fetchFailed = false;
+          break;
+        }
+        fetchFailed = true;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
 
-      const role = profile?.role;
+      if (fetchFailed) {
+        await supabase.auth.signOut();
+        setError("Couldn't verify your account role right now — this looks like a temporary connection issue, not a login problem. Please try again in a moment.");
+        setLoading(false);
+        return;
+      }
+
       const authorized = role === "manager" || role === portal;
       if (!authorized) {
         await supabase.auth.signOut();
