@@ -8,7 +8,6 @@ export default function LoginPage() {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +23,6 @@ export default function LoginPage() {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: fullName.trim() } },
         });
         if (signUpError) throw signUpError;
       } else {
@@ -53,13 +51,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {mode === "signup" && (
-          <>
-            <label className="field-label">Full name</label>
-            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Maria Alvarez" />
-          </>
-        )}
-
         <label className="field-label">Email</label>
         <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
 
@@ -78,10 +69,11 @@ export default function LoginPage() {
 
         <div className="login-foot">
           {mode === "signup"
-            ? "The very first account becomes Admin automatically. Everyone after that waits for an Admin to assign their role (Manager, Admin, or Supervisor)."
+            ? "You'll get access right away. An Admin can adjust your role anytime from Users management."
             : "Contractors and superintendents only — clients view reports via a share link, no login needed."}
         </div>
       </div>
     </div>
   );
 }
+

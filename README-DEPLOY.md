@@ -14,7 +14,9 @@ Total time: ~30-40 minutes the first time.
 4. Open the file `supabase/schema.sql` from this folder, copy all of it, paste into the SQL editor, click **Run**.
    This creates your tables, security rules, and the photo storage bucket in one shot.
 5. Open a **new query**, open `supabase/schema_v2_roles.sql` from this folder, copy all of it, paste in, click **Run**.
-   This adds the Manager/Admin/Supervisor role system, Employees, Attendance, and Resource Requests. The very first person to sign up in your app becomes Admin automatically — everyone after that starts as "Pending" until an Admin assigns their role from the Users tab.
+   This adds the Manager/Admin/Supervisor role system, Employees, Attendance, and Resource Requests.
+6. Open a **new query**, open `supabase/schema_v3_no_approval.sql` from this folder, copy all of it, paste in, click **Run**.
+   This removes the approval step — new signups get access immediately, and an Admin can adjust anyone's role anytime from the Users tab.
 5. Go to **Project Settings → API**. You'll need three values from this page in Step 3:
    - **Project URL**
    - **anon public** key
