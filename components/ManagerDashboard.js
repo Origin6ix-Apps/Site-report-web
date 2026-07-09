@@ -6,6 +6,9 @@ import { X } from "lucide-react";
 
 const TABS = [
   { id: "projects", label: "Projects" },
+  { id: "admins", label: "Admins" },
+  { id: "supervisors", label: "Supervisors" },
+  { id: "employees", label: "Employees" },
   { id: "users", label: "Users" },
 ];
 
@@ -67,10 +70,18 @@ export default function ManagerDashboard() {
       <p className="dash-sub">Full visibility across every portal.</p>
 
       <div className="stat-grid">
-        <div className="stat-card"><div className="stat-num">{projects.length}</div><div className="stat-label">Total Projects</div></div>
-        <div className="stat-card"><div className="stat-num">{admins.length}</div><div className="stat-label">Admins</div></div>
-        <div className="stat-card"><div className="stat-num">{supervisors.length}</div><div className="stat-label">Supervisors</div></div>
-        <div className="stat-card"><div className="stat-num">{employees.length}</div><div className="stat-label">Employees</div></div>
+        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("projects")}>
+          <div className="stat-num">{projects.length}</div><div className="stat-label">Total Projects</div>
+        </button>
+        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("admins")}>
+          <div className="stat-num">{admins.length}</div><div className="stat-label">Admins</div>
+        </button>
+        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("supervisors")}>
+          <div className="stat-num">{supervisors.length}</div><div className="stat-label">Supervisors</div>
+        </button>
+        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("employees")}>
+          <div className="stat-num">{employees.length}</div><div className="stat-label">Employees</div>
+        </button>
       </div>
 
       <div className="tab-row">
@@ -98,6 +109,63 @@ export default function ManagerDashboard() {
             })}
           </div>
         )
+      )}
+
+      {tab === "admins" && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th></tr></thead>
+            <tbody>
+              {admins.length === 0 && <tr><td colSpan={3} className="muted" style={{ padding: 20 }}>No Admins yet.</td></tr>}
+              {admins.map((a) => (
+                <tr key={a.id}><td>{a.full_name || "—"}</td><td>{a.email}</td><td>{a.phone || "—"}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "supervisors" && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Projects Assigned</th></tr></thead>
+            <tbody>
+              {supervisors.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 20 }}>No Supervisors yet.</td></tr>}
+              {supervisors.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.full_name || "—"}</td>
+                  <td>{s.email}</td>
+                  <td>{s.phone || "—"}</td>
+                  <td>{projects.filter((p) => p.assigned_supervisor_id === s.id).map((p) => p.name).join(", ") || "None"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "employees" && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table">
+            <thead><tr><th>Name</th><th>Trade</th><th>Phone</th><th>Project</th><th>Status</th><th>Attendance (this month)</th></tr></thead>
+            <tbody>
+              {employees.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No employees yet.</td></tr>}
+              {employees.map((e) => {
+                const proj = projects.find((p) => p.id === e.project_id);
+                return (
+                  <tr key={e.id}>
+                    <td>{e.name}</td>
+                    <td>{e.trade || "—"}</td>
+                    <td>{e.phone || "—"}</td>
+                    <td>{proj?.name || "Unassigned"}</td>
+                    <td><span className={`status-pill ${e.active ? "active" : "absent"}`}>{e.active ? "Active" : "Inactive"}</span></td>
+                    <td>{presentDaysThisMonth(e.id, attendance)}/{daysInCurrentMonth()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
