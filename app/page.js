@@ -16,7 +16,7 @@ export default function Home() {
 
   return (
     <div className="screen center">
-      <Loader2 className="spin" size={24} color="#2563EB" />
+      <Loader2 className="spin" size={24} color="#111184" />
     </div>
   );
 }

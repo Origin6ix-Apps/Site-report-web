@@ -82,23 +82,32 @@ export default function AdminDashboard({ user }) {
 
 function ProjectsTab({ projects, supervisors, onChange }) {
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "" });
+  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
+  const [drafts, setDrafts] = useState({});
 
   async function createProject() {
     if (!form.name.trim()) return;
-    await supabase.from("projects").insert({ ...form });
-    setForm({ name: "", client: "", location: "", point_of_contact: "" });
+    await supabase.from("projects").insert({ ...form, deadline: form.deadline || null });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
     setShowNew(false);
     onChange();
   }
 
-  async function updateField(id, field, value) {
-    await supabase.from("projects").update({ [field]: value }).eq("id", id);
+  function draftValue(p, field) {
+    return drafts[p.id]?.[field] !== undefined ? drafts[p.id][field] : p[field];
+  }
+  function setDraft(id, field, value) {
+    setDrafts((d) => ({ ...d, [id]: { ...d[id], [field]: value } }));
+  }
+  async function saveRow(id) {
+    if (!drafts[id]) return;
+    await supabase.from("projects").update(drafts[id]).eq("id", id);
+    setDrafts((d) => { const next = { ...d }; delete next[id]; return next; });
     onChange();
   }
 
   async function deleteProject(id) {
-    if (!confirm("Delete this project? This also removes its reports.")) return;
+    if (!confirm("Delete this project? This also removes its reports, materials, and daily logs.")) return;
     await supabase.from("projects").delete().eq("id", id);
     onChange();
   }
@@ -114,39 +123,56 @@ function ProjectsTab({ projects, supervisors, onChange }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Project</th><th>Client / POC</th><th>Site</th><th>Supervisor</th><th>Completion</th><th>Status</th><th></th>
+              <th>Project</th><th>Client / POC</th><th>Site</th><th>Deadline</th><th>Supervisor</th><th>Completion</th><th>Status</th><th></th>
             </tr>
           </thead>
           <tbody>
-            {projects.map((p) => (
-              <tr key={p.id}>
-                <td><strong>{p.name}</strong></td>
-                <td>{p.client}{p.point_of_contact ? ` · ${p.point_of_contact}` : ""}</td>
-                <td>{p.location}</td>
-                <td>
-                  <select className="select-input" value={p.assigned_supervisor_id || ""} onChange={(e) => updateField(p.id, "assigned_supervisor_id", e.target.value || null)}>
-                    <option value="">— Unassigned —</option>
-                    {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
-                  </select>
-                </td>
-                <td style={{ minWidth: 130 }}>
-                  <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
-                  <input
-                    type="number" min="0" max="100" value={p.completion_percentage}
-                    onChange={(e) => updateField(p.id, "completion_percentage", Number(e.target.value))}
-                    style={{ width: 50, marginTop: 6, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }}
-                  /> %
-                </td>
-                <td>
-                  <select className="select-input" value={p.status} onChange={(e) => updateField(p.id, "status", e.target.value)}>
-                    <option value="active">Active</option>
-                    <option value="on_hold">On hold</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </td>
-                <td><button className="icon-btn-sm" onClick={() => deleteProject(p.id)}><Trash2 size={13} /></button></td>
-              </tr>
-            ))}
+            {projects.map((p) => {
+              const hasDraft = !!drafts[p.id];
+              return (
+                <tr key={p.id}>
+                  <td><strong>{p.name}</strong></td>
+                  <td>{p.client}{p.point_of_contact ? ` · ${p.point_of_contact}` : ""}</td>
+                  <td>{p.location}</td>
+                  <td>
+                    <input type="date" className="select-input" value={draftValue(p, "deadline") || ""} onChange={(e) => setDraft(p.id, "deadline", e.target.value)} />
+                  </td>
+                  <td>
+                    <select className="select-input" value={draftValue(p, "assigned_supervisor_id") || ""} onChange={(e) => setDraft(p.id, "assigned_supervisor_id", e.target.value || null)}>
+                      <option value="">— Unassigned —</option>
+                      {supervisors.map((s) => <option key={s.id} value={s.id}>{s.email}{s.full_name ? ` — ${s.full_name}` : ""}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ minWidth: 130 }}>
+                    <div className="progress-track"><div className="progress-fill" style={{ width: `${draftValue(p, "completion_percentage")}%` }} /></div>
+                    <input
+                      type="number" min="0" max="100" value={draftValue(p, "completion_percentage")}
+                      onChange={(e) => setDraft(p.id, "completion_percentage", Number(e.target.value))}
+                      style={{ width: 50, marginTop: 6, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }}
+                    /> %
+                  </td>
+                  <td>
+                    <select className="select-input" value={draftValue(p, "status")} onChange={(e) => setDraft(p.id, "status", e.target.value)}>
+                      <option value="active">Active</option>
+                      <option value="on_hold">On hold</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ opacity: hasDraft ? 1 : 0.4, cursor: hasDraft ? "pointer" : "not-allowed", padding: "4px 10px", fontSize: 11 }}
+                        disabled={!hasDraft} onClick={() => saveRow(p.id)}
+                      >
+                        Update
+                      </button>
+                      <button className="icon-btn-sm" onClick={() => deleteProject(p.id)}><Trash2 size={13} /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -166,6 +192,8 @@ function ProjectsTab({ projects, supervisors, onChange }) {
             <input className="input" value={form.point_of_contact} onChange={(e) => setForm({ ...form, point_of_contact: e.target.value })} placeholder="Name / phone" />
             <label className="field-label">Site location</label>
             <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+            <label className="field-label">Deadline</label>
+            <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={createProject}>Create project</button>
           </div>
         </div>
@@ -231,7 +259,7 @@ function EmployeesTab({ employees, projects, user, onChange }) {
             </div>
             <label className="field-label">Name</label>
             <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
-            <label className="field-label">Trade / role</label>
+            <label className="field-label">Position / Trade</label>
             <input className="input" value={form.trade} onChange={(e) => setForm({ ...form, trade: e.target.value })} placeholder="e.g. Electrician" />
             <label className="field-label">Phone</label>
             <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -269,7 +297,7 @@ function AttendanceTab({ attendance }) {
   );
 }
 
-function UsersTab({ profiles, onChange }) {
+export function UsersTab({ profiles, onChange }) {
   async function setRole(id, role) {
     await supabase.from("profiles").update({ role }).eq("id", id);
     onChange();

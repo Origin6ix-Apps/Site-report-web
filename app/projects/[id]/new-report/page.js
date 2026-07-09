@@ -148,7 +148,7 @@ export default function NewReportPage() {
   }
 
   if (!project) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#111184" /></div>;
   }
 
   return (

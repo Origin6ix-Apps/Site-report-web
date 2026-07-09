@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Site Report AI",
+  title: "Deepthi Sai Constructions",
   description: "Daily construction reports, generated from photos and a voice note.",
 };
 

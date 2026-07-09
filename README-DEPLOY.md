@@ -1,53 +1,50 @@
-# Deploying Site Report AI
+# Deploying Workforge
 
-This is a real Next.js web app connected to Supabase (database, auth, photo storage) and Claude (AI report generation). No local coding needed — you'll create two free accounts and click through a few forms.
-
-Total time: ~30-40 minutes the first time.
+A Next.js web app connected to Supabase (database, auth, photo storage) and Claude (AI report generation).
 
 ---
 
-## Step 1 — Create a Supabase project (database + login + photo storage)
+## Two setup paths — pick one
 
-1. Go to [supabase.com](https://supabase.com) → sign up → **New project**.
-2. Pick any name/region, set a database password (save it somewhere), wait ~2 minutes for it to provision.
-3. Once it's ready, go to **SQL Editor** → **New query**.
-4. Open the file `supabase/schema.sql` from this folder, copy all of it, paste into the SQL editor, click **Run**.
-   This creates your tables, security rules, and the photo storage bucket in one shot.
-5. Open a **new query**, open `supabase/schema_v2_roles.sql` from this folder, copy all of it, paste in, click **Run**.
-   This adds the Manager/Admin/Supervisor role system, Employees, Attendance, and Resource Requests.
-6. Open a **new query**, open `supabase/schema_v3_no_approval.sql` from this folder, copy all of it, paste in, click **Run**.
-   This removes the approval step — new signups get access immediately, and an Admin can adjust anyone's role anytime from the Users tab.
-5. Go to **Project Settings → API**. You'll need three values from this page in Step 3:
-   - **Project URL**
-   - **anon public** key
-   - **service_role** key (click "Reveal" — keep this one secret, never share it)
+**A) Brand-new Supabase project (never deployed this before)**
+Run only `supabase/schema_master.sql` — one file, does everything.
+
+**B) You already have a Supabase project from earlier setup**
+Run only `supabase/schema_v6_final.sql` — it just adds what's new (phone numbers, deadlines, Materials, Daily Logs) without touching anything that already works.
+
+Either way: SQL Editor → New query → paste the file's contents → Run.
 
 ---
 
-## Step 2 — Get a Claude API key
+## Step 1 — Supabase
 
-1. Go to [console.anthropic.com](https://console.anthropic.com) → sign up if needed.
-2. **Settings → API Keys → Create Key**. Copy it (starts with `sk-ant-...`).
-3. Add a small amount of billing credit — a few dollars covers hundreds of test reports.
-
----
-
-## Step 3 — Put the code on GitHub
-
-1. Go to [github.com](https://github.com) → sign up if needed → **New repository** → name it `site-report-web` → **Create repository**.
-2. On the new repo's page, click **uploading an existing file**.
-3. Drag in every file and folder from this project (keep the folder structure intact).
-4. Scroll down, click **Commit changes**.
-
-*(If you're comfortable with GitHub Desktop instead, that works too — same result.)*
+1. [supabase.com](https://supabase.com) → New project → wait ~2 min to provision.
+2. SQL Editor → run the ONE file from above that matches your situation.
+3. Project Settings → API → copy three values you'll need in Step 3:
+   - Project URL
+   - anon public key
+   - service_role key (click "Reveal" — keep this secret)
+4. Authentication → Providers → Email → turn OFF "Confirm email" (faster testing; turn back on later if you want it).
 
 ---
 
-## Step 4 — Deploy to Vercel
+## Step 2 — Claude API key
 
-1. Go to [vercel.com](https://vercel.com) → sign up using your GitHub account (this links them automatically).
-2. Click **Add New → Project**, select your `site-report-web` repo, click **Import**.
-3. Before clicking Deploy, open **Environment Variables** and add these four, using the values from Steps 1 and 2:
+1. [console.anthropic.com](https://console.anthropic.com) → Settings → API Keys → Create Key.
+2. Add a small amount of billing credit.
+
+---
+
+## Step 3 — Push code to GitHub
+
+Use GitHub Desktop: clone your repo, copy all these files into that folder (keeping the exact folder structure), commit, push.
+
+---
+
+## Step 4 — Vercel
+
+1. [vercel.com](https://vercel.com) → sign in with GitHub → Add New → Project → import your repo.
+2. Before deploying, add these four Environment Variables:
 
    | Name | Value |
    |---|---|
@@ -56,39 +53,40 @@ Total time: ~30-40 minutes the first time.
    | `SUPABASE_SERVICE_ROLE_KEY` | your Supabase service_role key |
    | `ANTHROPIC_API_KEY` | your Claude API key |
 
-4. Click **Deploy**. Wait ~2 minutes.
-5. Vercel gives you a live URL like `site-report-web.vercel.app` — that's your real app.
+3. Deploy. Root Directory should be blank (`./`) unless your repo has an extra wrapper folder.
 
 ---
 
-## Step 5 — Test it
+## Step 5 — Create your first Manager account
 
-1. Open your new URL, create an account (any email + password), sign in.
-2. Create a project, go into it, tap **New report**.
-3. Upload 1-2 photos, type or speak a quick note, tap **Generate daily report**.
-4. It should return a structured report in ~10-20 seconds.
-5. Back on the Projects page, click **Owner view** on your project — that link is what you send to a client. It needs no login.
+This is the one manual step, every time you set up fresh:
 
----
-
-## Sharing with a client (this is your pilot pitch)
-
-Every project has an **Owner view** link (a long URL with a unique code). Anyone with that link can see all daily reports for that project — no account required. That's the link you text or email your pilot client.
+1. Open your live app → choose any portal → "Create an account" → sign up with your own email.
+2. Go to Supabase → Table Editor → `profiles` table.
+3. Find your new row, click into the `role` cell, change it to `manager`.
+4. Log out and back in through the **Manager** portal.
+5. From the Manager dashboard's **Users** tab, assign roles (Admin, Supervisor) to everyone else who signs up from here on — no more manual database editing needed.
 
 ---
 
-## Known limitations at pilot stage (fix before wider rollout)
+## How the app works, in short
 
-- **Anyone who knows a project's ID could, in theory, submit a report to it** via the API — the report-generation endpoint doesn't yet check that the caller is logged in as that project's owner. Fine for a handful of trusted pilot users; before opening this up publicly, add a login check to `app/api/generate-report/route.js`.
-- **Email confirmation:** by default, Supabase may require users to click a confirmation email before signing in. You can turn this off for faster pilot testing under **Authentication → Providers → Email → Confirm email**.
-- **Costs:** Supabase and Vercel are free at this scale. Claude API costs are usage-based — roughly a few cents per generated report depending on photo count.
+- **Login is portal-first**: pick Manager, Admin, or Supervisor, then sign in. An account only gets into a portal that matches its assigned role (Managers can enter any of the three).
+- **Signup never grants access automatically** — new accounts sit as "Pending" until an Admin or Manager assigns them a role.
+- **Admin** creates projects (with deadline, point of contact), assigns Supervisors, adds/removes Employees, sets completion %, views attendance.
+- **Supervisor** sees only their assigned projects: updates completion %, adds crew, marks attendance, logs Materials (stock used/required), and posts Daily Logs (text + up to 8 photos, each viewable/printable as a PDF).
+- **Manager** sees everything: click any project box to open a full detail view (team, attendance, materials, daily logs, supervisor contact info) — and assigns any role, including promoting people to Admin.
+- The original AI-generated report feature (photos + voice note → structured report) is still there too, reachable from a Supervisor's project card as "Full AI daily report" — separate from the simpler Daily Log tab.
+
+---
+
+## Known limitations at pilot stage
+
+- The AI report-generation endpoint (`app/api/generate-report/route.js`) doesn't verify the caller owns the project it's posting to — fine for a small trusted team, worth locking down before a public rollout.
+- Costs: Supabase and Vercel are free at this scale. Claude API usage is a few cents per generated report.
 
 ---
 
 ## If something breaks
 
-Come back with:
-1. Which step you were on
-2. The exact error message (screenshot is great)
-
-and I'll help you debug it directly.
+Come back with which step you were on and the exact error message (screenshot is great) — happy to debug it with you.

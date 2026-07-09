@@ -36,7 +36,7 @@ export default function OwnerPage() {
     return <div className="screen center"><div className="empty"><p>{error}</p></div></div>;
   }
   if (!data) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#111184" /></div>;
   }
 
   const { project, reports } = data;
@@ -70,7 +70,7 @@ export default function OwnerPage() {
 
         {open && (
           <>
-            <button className="link-btn no-print" style={{ color: "#2563EB", marginBottom: 14 }} onClick={() => setOpenId(null)}>← Back to all reports</button>
+            <button className="link-btn no-print" style={{ color: "#111184", marginBottom: 14 }} onClick={() => setOpenId(null)}>← Back to all reports</button>
             <div className="report-paper">
               <div className="report-header">
                 <div>

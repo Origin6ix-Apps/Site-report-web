@@ -57,15 +57,15 @@ export default function ProjectsPage() {
   }
 
   if (loading) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#111184" /></div>;
   }
 
   return (
     <div className="screen">
       <header className="topbar">
         <div className="brand small">
-          <div className="brand-mark small">SR</div>
-          <span className="brand-name small">SITE REPORT AI</span>
+          <div className="brand-mark small">WF</div>
+          <span className="brand-name small">WORKFORGE</span>
         </div>
         <div className="topbar-right">
           <a href="/dashboard" className="user-chip" style={{ textDecoration: "underline" }}>← Dashboard</a>
