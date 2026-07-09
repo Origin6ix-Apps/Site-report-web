@@ -10,13 +10,13 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
-      router.replace(data.session ? "/projects" : "/login");
+      router.replace(data.session ? "/dashboard" : "/login");
     })();
   }, [router]);
 
   return (
     <div className="screen center">
-      <Loader2 className="spin" size={24} color="#fff" />
+      <Loader2 className="spin" size={24} color="#2563EB" />
     </div>
   );
 }

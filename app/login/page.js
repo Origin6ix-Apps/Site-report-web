@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [company, setCompany] = useState("");
+  const [fullName, setFullName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { company: company.trim() || "Independent" } },
+          options: { data: { full_name: fullName.trim() } },
         });
         if (signUpError) throw signUpError;
       } else {
@@ -34,7 +34,7 @@ export default function LoginPage() {
         });
         if (signInError) throw signInError;
       }
-      router.replace("/projects");
+      router.replace("/dashboard");
     } catch (e) {
       setError(e.message || "Something went wrong.");
     } finally {
@@ -55,8 +55,8 @@ export default function LoginPage() {
 
         {mode === "signup" && (
           <>
-            <label className="field-label">Company</label>
-            <input className="input" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Alvarez Builders" />
+            <label className="field-label">Full name</label>
+            <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Maria Alvarez" />
           </>
         )}
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         <div className="login-foot">
           {mode === "signup"
-            ? "You'll get a confirmation email if your Supabase project requires email verification."
+            ? "The very first account becomes Admin automatically. Everyone after that waits for an Admin to assign their role (Manager, Admin, or Supervisor)."
             : "Contractors and superintendents only — clients view reports via a share link, no login needed."}
         </div>
       </div>

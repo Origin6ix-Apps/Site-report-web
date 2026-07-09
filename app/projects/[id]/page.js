@@ -27,13 +27,13 @@ export default function ProjectDetailPage() {
   }, [id, router]);
 
   if (loading || !project) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#fff" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
   }
 
   return (
     <div className="screen">
       <header className="topbar">
-        <button className="icon-btn" onClick={() => router.push("/projects")}><ChevronLeft size={18} /></button>
+        <button className="icon-btn" onClick={() => router.push("/dashboard")}><ChevronLeft size={18} /></button>
         <span className="topbar-title">{project.name}</span>
         <span />
       </header>

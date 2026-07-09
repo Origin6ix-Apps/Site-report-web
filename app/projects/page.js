@@ -57,7 +57,7 @@ export default function ProjectsPage() {
   }
 
   if (loading) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#fff" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
   }
 
   return (
@@ -68,6 +68,7 @@ export default function ProjectsPage() {
           <span className="brand-name small">SITE REPORT AI</span>
         </div>
         <div className="topbar-right">
+          <a href="/dashboard" className="user-chip" style={{ textDecoration: "underline" }}>← Dashboard</a>
           <span className="user-chip">{user?.email}</span>
           <button className="icon-btn" title="Log out" onClick={logout}><LogOut size={18} /></button>
         </div>

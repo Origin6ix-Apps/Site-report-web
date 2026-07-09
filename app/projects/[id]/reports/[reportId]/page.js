@@ -32,7 +32,7 @@ export default function ReportDetailPage() {
   }, [id, reportId, router]);
 
   if (!project || !report) {
-    return <div className="screen center"><Loader2 className="spin" size={24} color="#fff" /></div>;
+    return <div className="screen center"><Loader2 className="spin" size={24} color="#2563EB" /></div>;
   }
 
   return (
