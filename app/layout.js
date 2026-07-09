@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Deepthi Sai Constructions",
-  description: "Daily construction reports, generated from photos and a voice note.",
+  title: "Workforge",
+  description: "Teams, projects, and reports — managed in one place.",
 };
 
 export default function RootLayout({ children }) {
