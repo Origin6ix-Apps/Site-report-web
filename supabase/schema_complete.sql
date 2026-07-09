@@ -1,13 +1,56 @@
--- ROLES & COMPANY DASHBOARD SCHEMA
--- Run this in Supabase SQL Editor AFTER the original schema.sql.
--- Safe to re-run (uses IF NOT EXISTS / DROP POLICY IF EXISTS).
+-- SITE REPORT AI — COMPLETE SCHEMA (run this single file top to bottom)
+-- Safe to re-run anytime — every statement either checks "if not exists" or
+-- drops/replaces before creating, so running this twice won't break anything.
 
--- 1. PROFILES: extends auth.users with a role
+create extension if not exists "pgcrypto";
+
+-- ========== 1. PROJECTS & REPORTS (base tables) ==========
+
+create table if not exists projects (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid references auth.users(id) on delete cascade,
+  name text not null,
+  client text not null default '',
+  location text not null default '',
+  share_token uuid not null default gen_random_uuid(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists reports (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  report_date text not null,
+  transcript text default '',
+  summary text default '',
+  work_completed jsonb default '[]',
+  materials_equipment jsonb default '[]',
+  crew_on_site text default '',
+  safety_notes jsonb default '[]',
+  issues_delays jsonb default '[]',
+  plan_for_tomorrow jsonb default '[]',
+  photo_urls jsonb default '[]',
+  created_at timestamptz not null default now()
+);
+
+alter table projects enable row level security;
+alter table reports enable row level security;
+
+insert into storage.buckets (id, name, public)
+values ('site-photos', 'site-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "site_photos_public_read" on storage.objects;
+create policy "site_photos_public_read" on storage.objects for select using (bucket_id = 'site-photos');
+drop policy if exists "site_photos_auth_write" on storage.objects;
+create policy "site_photos_auth_write" on storage.objects for insert with check (bucket_id = 'site-photos' and auth.role() = 'authenticated');
+
+-- ========== 2. PROFILES & ROLES ==========
+
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
-  role text not null default 'pending' check (role in ('pending','manager','admin','supervisor')),
+  role text not null default 'supervisor' check (role in ('pending','manager','admin','supervisor')),
   created_at timestamptz not null default now()
 );
 
@@ -28,24 +71,24 @@ create policy "profiles_admin_update_any" on profiles for update using (
   or id = auth.uid()
 );
 
--- Auto-create a profile row whenever someone signs up.
--- The very first person to ever sign up becomes 'admin' automatically (bootstrap).
--- Everyone after that starts as 'pending' until an admin assigns a real role.
+-- New signups get access immediately — role comes from what they picked at signup
+-- (or 'supervisor' by default). No approval step. Admins can change anyone's role
+-- anytime from the Users tab.
 create or replace function handle_new_user()
 returns trigger as $$
 declare
-  existing_count int;
-  assigned_role text;
+  requested_role text;
+  final_role text;
 begin
-  select count(*) into existing_count from profiles;
-  if existing_count = 0 then
-    assigned_role := 'admin';
+  requested_role := new.raw_user_meta_data->>'role';
+  if requested_role in ('admin','manager','supervisor') then
+    final_role := requested_role;
   else
-    assigned_role := 'pending';
+    final_role := 'supervisor';
   end if;
 
   insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name', ''), assigned_role);
+  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name', ''), final_role);
   return new;
 end;
 $$ language plpgsql security definer;
@@ -55,17 +98,24 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
 
--- 2. PROJECTS: extend with company-wide fields (in addition to columns from schema.sql)
+-- Backfill: fix any existing accounts still stuck as 'pending' from before this change
+update profiles set role = 'supervisor' where role = 'pending';
+
+-- ========== 3. PROJECTS: company-wide fields + role-based access ==========
+
 alter table projects add column if not exists point_of_contact text default '';
 alter table projects add column if not exists completion_percentage int not null default 0 check (completion_percentage between 0 and 100);
 alter table projects add column if not exists assigned_supervisor_id uuid references auth.users(id);
 alter table projects add column if not exists status text not null default 'active' check (status in ('active','on_hold','completed'));
 
--- Replace old owner-based policies with role-based, company-wide policies.
 drop policy if exists "projects_owner_select" on projects;
 drop policy if exists "projects_owner_insert" on projects;
 drop policy if exists "projects_owner_update" on projects;
 drop policy if exists "projects_owner_delete" on projects;
+drop policy if exists "projects_select_by_role" on projects;
+drop policy if exists "projects_admin_insert" on projects;
+drop policy if exists "projects_admin_update" on projects;
+drop policy if exists "projects_admin_delete" on projects;
 
 create policy "projects_select_by_role" on projects for select using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('admin','manager'))
@@ -82,10 +132,11 @@ create policy "projects_admin_delete" on projects for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
--- Reports: update policy to match new role model (admin/manager see all, supervisor sees their project's reports)
 drop policy if exists "reports_owner_select" on reports;
 drop policy if exists "reports_owner_insert" on reports;
 drop policy if exists "reports_owner_delete" on reports;
+drop policy if exists "reports_select_by_role" on reports;
+drop policy if exists "reports_insert_by_role" on reports;
 
 create policy "reports_select_by_role" on reports for select using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('admin','manager'))
@@ -96,7 +147,8 @@ create policy "reports_insert_by_role" on reports for insert with check (
   or exists (select 1 from projects pr where pr.id = reports.project_id and pr.assigned_supervisor_id = auth.uid())
 );
 
--- 3. EMPLOYEES: records only, no login
+-- ========== 4. EMPLOYEES ==========
+
 create table if not exists employees (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects(id) on delete set null,
@@ -131,7 +183,8 @@ create policy "employees_delete_by_role" on employees for delete using (
   or exists (select 1 from projects pr where pr.id = employees.project_id and pr.assigned_supervisor_id = auth.uid())
 );
 
--- 4. ATTENDANCE
+-- ========== 5. ATTENDANCE ==========
+
 create table if not exists attendance (
   id uuid primary key default gen_random_uuid(),
   employee_id uuid not null references employees(id) on delete cascade,
@@ -160,7 +213,8 @@ create policy "attendance_update_by_role" on attendance for update using (
   or exists (select 1 from projects pr where pr.id = attendance.project_id and pr.assigned_supervisor_id = auth.uid())
 );
 
--- 5. RESOURCE REQUESTS (material or additional employee requests from supervisors)
+-- ========== 6. RESOURCE REQUESTS ==========
+
 create table if not exists resource_requests (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references projects(id) on delete cascade,
@@ -187,3 +241,7 @@ drop policy if exists "requests_update_by_role" on resource_requests;
 create policy "requests_update_by_role" on resource_requests for update using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('admin','manager'))
 );
+
+-- Done. Every new signup gets a profile automatically with role 'supervisor'
+-- (or whatever they picked, if your signup form sends one). Any existing
+-- accounts previously stuck on 'pending' were just fixed above.
