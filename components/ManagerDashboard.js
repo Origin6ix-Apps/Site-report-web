@@ -169,32 +169,7 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {tab === "materials" && (
-        <div style={{ overflowX: "auto" }}>
-          <table className="data-table">
-            <thead><tr><th>Material</th><th>Project</th><th>Supervisor</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
-            <tbody>
-              {materials.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No materials ordered yet.</td></tr>}
-              {materials.map((m) => {
-                const proj = projects.find((p) => p.id === m.project_id);
-                const sup = proj ? profiles.find((u) => u.id === proj.assigned_supervisor_id) : null;
-                return (
-                  <tr key={m.id}>
-                    <td>{m.name}</td>
-                    <td>{proj?.name || "—"}</td>
-                    <td>{sup ? (sup.full_name || sup.email) : "—"}</td>
-                    <td>{m.used || 0}</td>
-                    <td>{m.required || 0}</td>
-                    <td>{m.unit || "—"}</td>
-                    <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
-                    <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {tab === "materials" && <MaterialsOverviewTab projects={projects} materials={materials} profiles={profiles} />}
 
       {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
 
@@ -203,6 +178,64 @@ export default function ManagerDashboard() {
           project={openProject} profiles={profiles} employees={employees} attendance={attendance}
           materials={materials} dailyLogs={dailyLogs} onClose={() => setOpenId(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function MaterialsOverviewTab({ projects, materials, profiles }) {
+  // Only show projects that actually have at least one material order — keeps the
+  // list short and relevant instead of cluttering it with empty projects.
+  const projectsWithMaterials = projects.filter((p) => materials.some((m) => m.project_id === p.id));
+  const [selectedId, setSelectedId] = useState(projectsWithMaterials[0]?.id || null);
+
+  if (projectsWithMaterials.length === 0) {
+    return <div className="empty"><p>No materials ordered yet on any project.</p></div>;
+  }
+
+  const selectedProject = projectsWithMaterials.find((p) => p.id === selectedId) || projectsWithMaterials[0];
+  const sup = selectedProject ? profiles.find((u) => u.id === selectedProject.assigned_supervisor_id) : null;
+  const projMaterials = materials.filter((m) => m.project_id === selectedProject?.id);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {projectsWithMaterials.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setSelectedId(p.id)}
+            className={`tab-btn ${selectedProject?.id === p.id ? "active" : ""}`}
+            style={{ border: "1px solid var(--border)", borderRadius: 20, padding: "6px 14px" }}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {selectedProject && (
+        <>
+          <div className="dash-sub" style={{ marginBottom: 12 }}>
+            Supervisor: {sup ? `${sup.full_name || sup.email}` : "Unassigned"}
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
+              <tbody>
+                {projMaterials.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No materials for this project.</td></tr>}
+                {projMaterials.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.name}</td>
+                    <td>{m.used || 0}</td>
+                    <td>{m.required || 0}</td>
+                    <td>{m.unit || "—"}</td>
+                    <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
+                    <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
