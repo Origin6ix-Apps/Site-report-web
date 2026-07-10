@@ -57,7 +57,7 @@ function DashboardInner() {
     <div className="screen">
       <header className="topbar">
         <div className="brand small">
-          <div className="brand-mark small">WF</div>
+          <img src="/logo.png" alt="Workforge" className="brand-mark small" />
           <span className="brand-name small">WORKFORGE</span>
         </div>
         <div className="topbar-right">

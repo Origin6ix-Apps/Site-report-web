@@ -28,7 +28,7 @@ function PortalPicker({ onChoose }) {
   return (
     <div style={{ width: 340 }}>
       <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <div className="brand-mark" style={{ margin: "0 auto 10px" }}>WF</div>
+        <img src="/logo.png" alt="Workforge" className="brand-mark" style={{ margin: "0 auto 10px" }} />
         <div className="brand-name">WORKFORGE</div>
         <div className="brand-sub">Choose your portal to sign in</div>
       </div>
@@ -148,7 +148,7 @@ function PortalLogin({ portal, onBack }) {
     <div className="login-card">
       <button className="link-btn" style={{ marginTop: 0, marginBottom: 12 }} onClick={onBack}>← Choose a different portal</button>
       <div className="brand">
-        <div className="brand-mark">WF</div>
+        <img src="/logo.png" alt="Workforge" className="brand-mark" />
         <div>
           <div className="brand-name">{portalLabel} Portal</div>
           <div className="brand-sub">Teams, projects, and reports — managed in one place</div>
