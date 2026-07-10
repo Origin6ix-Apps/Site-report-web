@@ -143,6 +143,17 @@ function MyEmployeesTab({ employees, projects, user, onChange }) {
     onChange();
   }
 
+  async function setActive(id, active) {
+    await supabase.from("employees").update({ active }).eq("id", id);
+    onChange();
+  }
+
+  async function removeEmployee(id) {
+    if (!confirm("Remove this employee? This can't be undone.")) return;
+    await supabase.from("employees").delete().eq("id", id);
+    onChange();
+  }
+
   return (
     <div>
       <div className="row-between" style={{ marginBottom: 12 }}>
@@ -151,14 +162,29 @@ function MyEmployeesTab({ employees, projects, user, onChange }) {
       </div>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>Name</th><th>Trade</th><th>Phone</th><th>Status</th></tr></thead>
+          <thead><tr><th>Name</th><th>Trade</th><th>Phone</th><th>Project</th><th>Status</th><th></th></tr></thead>
           <tbody>
-            {employees.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 20 }}>No crew added yet.</td></tr>}
-            {employees.map((e) => (
-              <tr key={e.id}><td>{e.name}</td><td>{e.trade || "—"}</td><td>{e.phone || "—"}</td>
-                <td><span className={`status-pill ${e.active ? "active" : "absent"}`}>{e.active ? "Active" : "Inactive"}</span></td>
-              </tr>
-            ))}
+            {employees.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No crew added yet.</td></tr>}
+            {employees.map((e) => {
+              const proj = projects.find((p) => p.id === e.project_id);
+              return (
+                <tr key={e.id}>
+                  <td>{e.name}</td><td>{e.trade || "—"}</td><td>{e.phone || "—"}</td>
+                  <td>{proj?.name || "—"}</td>
+                  <td><span className={`status-pill ${e.active ? "active" : "absent"}`}>{e.active ? "Active" : "On hold"}</span></td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {e.active ? (
+                        <button className="icon-btn-sm" onClick={() => setActive(e.id, false)}>Hold</button>
+                      ) : (
+                        <button className="icon-btn-sm" onClick={() => setActive(e.id, true)}>Activate</button>
+                      )}
+                      <button className="icon-btn-sm" onClick={() => removeEmployee(e.id)}><Trash2 size={13} /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -288,23 +314,28 @@ function MaterialsTab({ projects, materials, user, onChange }) {
       </div>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th><th></th></tr></thead>
+          <thead><tr><th>Material</th><th>Project</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th><th></th></tr></thead>
           <tbody>
-            {materials.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No materials ordered yet.</td></tr>}
-            {materials.map((m) => (
-              <tr key={m.id}>
-                <td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
-                <td>
-                  <select className="select-input" value={m.status || "ordered"} onChange={(e) => updateStatus(m.id, e.target.value)}>
-                    <option value="ordered">Ordered</option>
-                    <option value="not_delivered">Not delivered</option>
-                    <option value="delivered">Delivered</option>
-                  </select>
-                </td>
-                <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
-                <td><button className="icon-btn-sm" onClick={() => remove(m.id)}><Trash2 size={13} /></button></td>
-              </tr>
-            ))}
+            {materials.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No materials ordered yet.</td></tr>}
+            {materials.map((m) => {
+              const proj = projects.find((p) => p.id === m.project_id);
+              return (
+                <tr key={m.id}>
+                  <td>{m.name}</td>
+                  <td>{proj?.name || "—"}</td>
+                  <td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
+                  <td>
+                    <select className="select-input" value={m.status || "ordered"} onChange={(e) => updateStatus(m.id, e.target.value)}>
+                      <option value="ordered">Ordered</option>
+                      <option value="not_delivered">Not delivered</option>
+                      <option value="delivered">Delivered</option>
+                    </select>
+                  </td>
+                  <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                  <td><button className="icon-btn-sm" onClick={() => remove(m.id)}><Trash2 size={13} /></button></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
