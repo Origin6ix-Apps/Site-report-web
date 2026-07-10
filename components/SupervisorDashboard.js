@@ -227,7 +227,8 @@ function MarkAttendanceTab({ employees, attendance, user, onChange }) {
   return (
     <div>
       <label className="field-label">Date</label>
-      <input type="date" className="input" style={{ maxWidth: 200, marginBottom: 16 }} value={date} onChange={(e) => setDate(e.target.value)} />
+      <input type="date" className="input" style={{ maxWidth: 200, marginBottom: 6 }} value={date} onChange={(e) => setDate(e.target.value)} />
+      <div className="dash-sub" style={{ marginTop: 0, marginBottom: 12 }}>Pick any past date to view or correct that day's attendance.</div>
 
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
@@ -312,11 +313,11 @@ function MaterialsTab({ projects, materials, user, onChange }) {
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label className="field-label">Stock used</label>
-                <input type="number" className="input" value={form.used} onChange={(e) => setForm({ ...form, used: e.target.value })} />
+                <input type="number" min="0" className="input" value={form.used} onChange={(e) => setForm({ ...form, used: Math.max(0, Number(e.target.value) || 0) })} />
               </div>
               <div style={{ flex: 1 }}>
                 <label className="field-label">Stock required</label>
-                <input type="number" className="input" value={form.required} onChange={(e) => setForm({ ...form, required: e.target.value })} />
+                <input type="number" min="0" className="input" value={form.required} onChange={(e) => setForm({ ...form, required: Math.max(0, Number(e.target.value) || 0) })} />
               </div>
             </div>
             <label className="field-label">Unit</label>

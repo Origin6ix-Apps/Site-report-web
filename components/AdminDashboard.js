@@ -72,7 +72,7 @@ export default function AdminDashboard({ user }) {
         <>
           {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} user={user} onChange={loadAll} />}
           {tab === "employees" && <EmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
-          {tab === "attendance" && <AttendanceTab attendance={attendance} />}
+          {tab === "attendance" && <AttendanceTab attendance={attendance} onChange={loadAll} />}
           {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
         </>
       )}
@@ -283,9 +283,15 @@ function EmployeesTab({ employees, projects, user, onChange }) {
   );
 }
 
-function AttendanceTab({ attendance }) {
+function AttendanceTab({ attendance, onChange }) {
+  async function updateStatus(id, status) {
+    await supabase.from("attendance").update({ status }).eq("id", id);
+    onChange();
+  }
+
   return (
     <div style={{ overflowX: "auto" }}>
+      <div className="dash-sub" style={{ marginBottom: 10 }}>Change the status below to correct any record, including past dates.</div>
       <table className="data-table">
         <thead><tr><th>Date</th><th>Employee</th><th>Project</th><th>Status</th></tr></thead>
         <tbody>
@@ -295,7 +301,13 @@ function AttendanceTab({ attendance }) {
               <td>{a.attendance_date}</td>
               <td>{a.employees?.name || "—"}</td>
               <td>{a.projects?.name || "—"}</td>
-              <td><span className={`status-pill ${a.status}`}>{a.status.replace("_", " ")}</span></td>
+              <td>
+                <select className="select-input" value={a.status} onChange={(e) => updateStatus(a.id, e.target.value)}>
+                  <option value="present">Present</option>
+                  <option value="absent">Absent</option>
+                  <option value="half_day">Half day</option>
+                </select>
+              </td>
             </tr>
           ))}
         </tbody>
