@@ -97,6 +97,7 @@ function MyProjectsTab({ projects, employees, onChange }) {
             <div className="project-meta">Client — {p.client || "—"}</div>
             <div className="project-meta">Site — {p.location || "—"}</div>
             {p.deadline && <div className="project-meta">Deadline — {p.deadline}</div>}
+            {p.scope_of_work && <div className="project-meta" style={{ marginTop: 4 }}>Scope — {p.scope_of_work}</div>}
             <div style={{ marginTop: 10 }}>
               <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
               {isEditing ? (
@@ -120,9 +121,6 @@ function MyProjectsTab({ projects, employees, onChange }) {
                   {team.map((e) => <li key={e.id}>{e.name} — {e.trade || "—"}</li>)}
                 </ul>
               )}
-            </div>
-            <div className="project-actions">
-              <a className="link-action" href={`/projects/${p.id}/new-report`}><FileText size={14} /> Full AI daily report</a>
             </div>
           </div>
         );
@@ -400,6 +398,7 @@ function DailyLogTab({ projects, dailyLogs, user, onChange }) {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [text, setText] = useState("");
   const [photos, setPhotos] = useState([]); // { id, previewUrl, blob }
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const [uploading, setUploading] = useState(false);
 
   async function handleUpload(e) {
@@ -486,11 +485,75 @@ function DailyLogTab({ projects, dailyLogs, user, onChange }) {
           {r.text && <div style={{ fontSize: 13, marginTop: 4 }}>{r.text}</div>}
           {r.photo_urls?.length > 0 && (
             <div className="rep-photo-grid" style={{ marginTop: 8 }}>
-              {r.photo_urls.map((p, i) => <img key={i} src={p} alt="" />)}
+              {r.photo_urls.map((p, i) => <img key={i} src={p} alt="" onClick={() => setLightboxSrc(p)} style={{ cursor: "zoom-in" }} />)}
             </div>
           )}
         </div>
       ))}
+
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </div>
+  );
+}
+
+function ImageLightbox({ src, onClose }) {
+  const [zoom, setZoom] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  async function getBlob() {
+    const res = await fetch(src);
+    return await res.blob();
+  }
+
+  async function handleDownload() {
+    setBusy(true);
+    try {
+      const blob = await getBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "site-photo.jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Couldn't download this image.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCopy() {
+    setBusy(true);
+    try {
+      const blob = await getBlob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    } catch (e) {
+      alert("Couldn't copy this image — your browser may not support copying images.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(15,15,30,0.9)", zIndex: 100,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 16, right: 16, display: "flex", gap: 8, zIndex: 101 }}>
+        <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>−</button>
+        <button onClick={() => setZoom((z) => Math.min(3, z + 0.25))} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>+</button>
+        <button onClick={handleCopy} disabled={busy} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>Copy</button>
+        <button onClick={handleDownload} disabled={busy} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>Download</button>
+        <button onClick={onClose} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>✕</button>
+      </div>
+      <div style={{ overflow: "auto", maxWidth: "92vw", maxHeight: "85vh" }} onClick={(e) => e.stopPropagation()}>
+        <img src={src} alt="" style={{ transform: `scale(${zoom})`, transition: "transform 0.15s", maxWidth: "92vw", maxHeight: "85vh", display: "block" }} />
+      </div>
     </div>
   );
 }

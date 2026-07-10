@@ -82,7 +82,7 @@ export default function AdminDashboard({ user }) {
 
 function ProjectsTab({ projects, supervisors, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
+  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", deadline: "", scope_of_work: "" });
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState("");
 
@@ -94,7 +94,7 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
       setError(insertError.message);
       return;
     }
-    setForm({ name: "", client: "", location: "", point_of_contact: "", deadline: "" });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", deadline: "", scope_of_work: "" });
     setShowNew(false);
     onChange();
   }
@@ -137,7 +137,14 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
               const hasDraft = !!drafts[p.id];
               return (
                 <tr key={p.id}>
-                  <td><strong>{p.name}</strong></td>
+                  <td>
+                    <strong>{p.name}</strong>
+                    {p.scope_of_work && (
+                      <div className="muted" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.scope_of_work}>
+                        {p.scope_of_work}
+                      </div>
+                    )}
+                  </td>
                   <td>{p.client}{p.point_of_contact ? ` · ${p.point_of_contact}` : ""}</td>
                   <td>{p.location}</td>
                   <td>
@@ -200,6 +207,8 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
             <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            <label className="field-label">Scope of work</label>
+            <textarea className="textarea" rows={3} value={form.scope_of_work} onChange={(e) => setForm({ ...form, scope_of_work: e.target.value })} placeholder="What does this project actually cover?" />
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={createProject}>Create project</button>
           </div>

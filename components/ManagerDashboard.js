@@ -101,6 +101,11 @@ export default function ManagerDashboard() {
                 <button key={p.id} onClick={() => setOpenId(p.id)} className="project-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", border: "1px solid var(--line)" }}>
                   <div className="project-name">{p.name}</div>
                   <div className="project-meta">{sup ? (sup.full_name || sup.email) : "Unassigned"}</div>
+                  {p.scope_of_work && (
+                    <div className="muted" style={{ marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      {p.scope_of_work}
+                    </div>
+                  )}
                   <div style={{ marginTop: 8 }}>
                     <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
                     <div className="muted" style={{ marginTop: 4 }}>{p.completion_percentage}% · {team.length} on team</div>
@@ -247,10 +252,18 @@ function ProjectDetailModal({ project, profiles, employees, attendance, material
   const projMaterials = materials.filter((m) => m.project_id === project.id);
   const projLogs = dailyLogs.filter((r) => r.project_id === project.id);
   const totalDays = daysInCurrentMonth();
+  const [modalTab, setModalTab] = useState("team");
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+
+  const MODAL_TABS = [
+    { id: "team", label: `Team & Attendance (${team.length})` },
+    { id: "materials", label: `Materials (${projMaterials.length})` },
+    { id: "logs", label: `Daily Logs (${projLogs.length})` },
+  ];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ width: 560, maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width: 620, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div className="row-between">
           <h2 className="h2" style={{ color: "var(--ink)" }}>{project.name}</h2>
           <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
@@ -263,56 +276,150 @@ function ProjectDetailModal({ project, profiles, employees, attendance, material
         <div className="muted" style={{ marginTop: 6 }}>
           Supervisor: {sup ? `${sup.email}${sup.full_name ? " — " + sup.full_name : ""}${sup.phone ? " — " + sup.phone : ""}` : "Unassigned"}
         </div>
-
-        <h3 className="h2" style={{ fontSize: 13, marginTop: 18, marginBottom: 6, color: "var(--ink)" }}>Team & attendance ({team.length})</h3>
-        {team.length === 0 ? <div className="muted">No team members yet.</div> : (
-          <table className="data-table">
-            <thead><tr><th>Name</th><th>Trade</th><th>Attendance (this month)</th></tr></thead>
-            <tbody>
-              {team.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.name}</td>
-                  <td>{e.trade || "—"}</td>
-                  <td>{presentDaysThisMonth(e.id, attendance)}/{totalDays}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {project.scope_of_work && (
+          <div style={{ marginTop: 10, background: "var(--paper)", borderRadius: 6, padding: "8px 12px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Scope of work</div>
+            <div style={{ fontSize: 13, color: "var(--ink)" }}>{project.scope_of_work}</div>
+          </div>
         )}
 
-        <h3 className="h2" style={{ fontSize: 13, marginTop: 18, marginBottom: 6, color: "var(--ink)" }}>Materials ({projMaterials.length})</h3>
-        {projMaterials.length === 0 ? <div className="muted">No materials logged yet.</div> : (
-          <table className="data-table">
-            <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
-            <tbody>
-              {projMaterials.map((m) => (
-                <tr key={m.id}>
-                  <td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
-                  <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
-                  <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="tab-row" style={{ marginTop: 16 }}>
+          {MODAL_TABS.map((t) => (
+            <button key={t.id} className={`tab-btn ${modalTab === t.id ? "active" : ""}`} onClick={() => setModalTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+
+        {modalTab === "team" && (
+          team.length === 0 ? <div className="muted">No team members yet.</div> : (
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Trade</th><th>Attendance (this month)</th></tr></thead>
+              <tbody>
+                {team.map((e) => (
+                  <tr key={e.id}>
+                    <td>{e.name}</td>
+                    <td>{e.trade || "—"}</td>
+                    <td>{presentDaysThisMonth(e.id, attendance)}/{totalDays}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
         )}
 
-        <h3 className="h2" style={{ fontSize: 13, marginTop: 18, marginBottom: 6, color: "var(--ink)" }}>Daily logs ({projLogs.length})</h3>
-        {projLogs.length === 0 ? <div className="muted">No daily logs yet.</div> : (
-          projLogs.map((r) => (
-            <div key={r.id} style={{ borderBottom: "1px solid var(--line)", padding: "8px 0" }}>
-              <div className="muted">{r.log_date}</div>
-              {r.text && <div style={{ fontSize: 12.5 }}>{r.text}</div>}
-              {r.photo_urls?.length > 0 && (
-                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-                  {r.photo_urls.map((p, i) => <img key={i} src={p} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 4 }} />)}
-                </div>
-              )}
-            </div>
-          ))
+        {modalTab === "materials" && (
+          projMaterials.length === 0 ? <div className="muted">No materials logged yet.</div> : (
+            <table className="data-table">
+              <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
+              <tbody>
+                {projMaterials.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
+                    <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
+                    <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
         )}
-        <div className="muted" style={{ marginTop: 12, fontSize: 11 }}>
+
+        {modalTab === "logs" && (
+          projLogs.length === 0 ? <div className="muted">No daily logs yet.</div> : (
+            projLogs.map((r) => (
+              <div key={r.id} style={{ borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
+                <div className="muted">{r.log_date}</div>
+                {r.text && <div style={{ fontSize: 12.5, marginTop: 2 }}>{r.text}</div>}
+                {r.photo_urls?.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    {r.photo_urls.map((p, i) => (
+                      <img
+                        key={i} src={p} alt=""
+                        onClick={() => setLightboxSrc(p)}
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, cursor: "zoom-in" }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )
+        )}
+
+        <div className="muted" style={{ marginTop: 16, fontSize: 11 }}>
           All of this stays visible here until this project is deleted from the Admin portal.
         </div>
+      </div>
+
+      {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+    </div>
+  );
+}
+
+function ImageLightbox({ src, onClose }) {
+  const [zoom, setZoom] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  async function getBlob() {
+    const res = await fetch(src);
+    return await res.blob();
+  }
+
+  async function handleDownload() {
+    setBusy(true);
+    try {
+      const blob = await getBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "site-photo.jpg";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Couldn't download this image.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCopy() {
+    setBusy(true);
+    try {
+      const blob = await getBlob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    } catch (e) {
+      alert("Couldn't copy this image — your browser may not support copying images.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(15,15,30,0.9)", zIndex: 100,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute", top: 16, right: 16, display: "flex", gap: 8, zIndex: 101,
+        }}
+      >
+        <button onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>−</button>
+        <button onClick={() => setZoom((z) => Math.min(3, z + 0.25))} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>+</button>
+        <button onClick={handleCopy} disabled={busy} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>Copy</button>
+        <button onClick={handleDownload} disabled={busy} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>Download</button>
+        <button onClick={onClose} className="btn btn-sm" style={{ background: "#fff", color: "var(--ink)" }}>✕</button>
+      </div>
+      <div style={{ overflow: "auto", maxWidth: "92vw", maxHeight: "85vh" }} onClick={(e) => e.stopPropagation()}>
+        <img
+          src={src} alt=""
+          style={{ transform: `scale(${zoom})`, transition: "transform 0.15s", maxWidth: "92vw", maxHeight: "85vh", display: "block" }}
+        />
       </div>
     </div>
   );
