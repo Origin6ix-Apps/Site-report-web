@@ -266,7 +266,7 @@ function MaterialsTab({ projects, materials, user, onChange }) {
 
   async function add() {
     if (!form.name.trim() || !form.project_id) return;
-    await supabase.from("materials").insert({ ...form, logged_by: user.id });
+    await supabase.from("materials").insert({ ...form, logged_by: user.id, status: "ordered", status_updated_at: new Date().toISOString() });
     setForm({ project_id: projects[0]?.id || "", name: "", used: "", required: "", unit: "" });
     setShowNew(false);
     onChange();
@@ -275,21 +275,33 @@ function MaterialsTab({ projects, materials, user, onChange }) {
     await supabase.from("materials").delete().eq("id", id);
     onChange();
   }
+  async function updateStatus(id, status) {
+    await supabase.from("materials").update({ status, status_updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
 
   return (
     <div>
       <div className="row-between" style={{ marginBottom: 12 }}>
-        <span className="dash-sub" style={{ marginBottom: 0 }}>Stock used vs. required, per material</span>
-        {projects.length > 0 && <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}><Plus size={16} /> Add material</button>}
+        <span className="dash-sub" style={{ marginBottom: 0 }}>Material orders — status and dates are visible to your Manager</span>
+        {projects.length > 0 && <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}><Plus size={16} /> Order material</button>}
       </div>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th></th></tr></thead>
+          <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th><th></th></tr></thead>
           <tbody>
-            {materials.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>No materials logged yet.</td></tr>}
+            {materials.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No materials ordered yet.</td></tr>}
             {materials.map((m) => (
               <tr key={m.id}>
                 <td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
+                <td>
+                  <select className="select-input" value={m.status || "ordered"} onChange={(e) => updateStatus(m.id, e.target.value)}>
+                    <option value="ordered">Ordered</option>
+                    <option value="not_delivered">Not delivered</option>
+                    <option value="delivered">Delivered</option>
+                  </select>
+                </td>
+                <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
                 <td><button className="icon-btn-sm" onClick={() => remove(m.id)}><Trash2 size={13} /></button></td>
               </tr>
             ))}
@@ -301,7 +313,7 @@ function MaterialsTab({ projects, materials, user, onChange }) {
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="row-between">
-              <h2 className="h2" style={{ color: "var(--ink)" }}>Add material</h2>
+              <h2 className="h2" style={{ color: "var(--ink)" }}>Order material</h2>
               <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => setShowNew(false)}><X size={18} /></button>
             </div>
             <label className="field-label">Project</label>
@@ -322,7 +334,7 @@ function MaterialsTab({ projects, materials, user, onChange }) {
             </div>
             <label className="field-label">Unit</label>
             <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="e.g. bags, tons, pieces" />
-            <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={add}>Add material</button>
+            <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={add}>Order material</button>
           </div>
         </div>
       )}

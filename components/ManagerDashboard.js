@@ -9,6 +9,7 @@ const TABS = [
   { id: "admins", label: "Admins" },
   { id: "supervisors", label: "Supervisors" },
   { id: "employees", label: "Employees" },
+  { id: "materials", label: "Materials" },
   { id: "users", label: "Users" },
 ];
 
@@ -168,6 +169,33 @@ export default function ManagerDashboard() {
         </div>
       )}
 
+      {tab === "materials" && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table">
+            <thead><tr><th>Material</th><th>Project</th><th>Supervisor</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
+            <tbody>
+              {materials.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No materials ordered yet.</td></tr>}
+              {materials.map((m) => {
+                const proj = projects.find((p) => p.id === m.project_id);
+                const sup = proj ? profiles.find((u) => u.id === proj.assigned_supervisor_id) : null;
+                return (
+                  <tr key={m.id}>
+                    <td>{m.name}</td>
+                    <td>{proj?.name || "—"}</td>
+                    <td>{sup ? (sup.full_name || sup.email) : "—"}</td>
+                    <td>{m.used || 0}</td>
+                    <td>{m.required || 0}</td>
+                    <td>{m.unit || "—"}</td>
+                    <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
+                    <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
 
       {openProject && (
@@ -222,10 +250,14 @@ function ProjectDetailModal({ project, profiles, employees, attendance, material
         <h3 className="h2" style={{ fontSize: 13, marginTop: 18, marginBottom: 6, color: "var(--ink)" }}>Materials ({projMaterials.length})</h3>
         {projMaterials.length === 0 ? <div className="muted">No materials logged yet.</div> : (
           <table className="data-table">
-            <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th></tr></thead>
+            <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
             <tbody>
               {projMaterials.map((m) => (
-                <tr key={m.id}><td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td></tr>
+                <tr key={m.id}>
+                  <td>{m.name}</td><td>{m.used || 0}</td><td>{m.required || 0}</td><td>{m.unit || "—"}</td>
+                  <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
+                  <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                </tr>
               ))}
             </tbody>
           </table>
