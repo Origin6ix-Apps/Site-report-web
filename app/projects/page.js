@@ -64,8 +64,7 @@ export default function ProjectsPage() {
     <div className="screen">
       <header className="topbar">
         <div className="brand small">
-          <img src="/logo.png" alt="Workforge" className="brand-mark small" />
-          <span className="brand-name small">WORKFORGE</span>
+          <img src="/logo.png" alt="MES Portal" style={{ width: 90, height: "auto" }} />
         </div>
         <div className="topbar-right">
           <a href="/dashboard" className="user-chip" style={{ textDecoration: "underline" }}>← Dashboard</a>

@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Workforge",
+  title: "MES Portal",
   description: "Teams, projects, and reports — managed in one place.",
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
               fontFamily: "Montserrat, sans-serif", borderTop: "1px solid #E2E8F0",
             }}
           >
-            © 2026 Workforge. All rights reserved. Developed by Origin6ix.
+            © 2026 MES Portal. All rights reserved. Developed by Origin6ix.
           </footer>
         </div>
       </body>

@@ -28,8 +28,7 @@ function PortalPicker({ onChoose }) {
   return (
     <div style={{ width: 340 }}>
       <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <img src="/logo.png" alt="Workforge" className="brand-mark" style={{ margin: "0 auto 10px" }} />
-        <div className="brand-name">WORKFORGE</div>
+        <img src="/logo.png" alt="MES Portal" style={{ width: 180, height: "auto", margin: "0 auto 14px", display: "block", marginLeft: "auto", marginRight: "auto" }} />
         <div className="brand-sub">Choose your portal to sign in</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -147,12 +146,10 @@ function PortalLogin({ portal, onBack }) {
   return (
     <div className="login-card">
       <button className="link-btn" style={{ marginTop: 0, marginBottom: 12 }} onClick={onBack}>← Choose a different portal</button>
-      <div className="brand">
-        <img src="/logo.png" alt="Workforge" className="brand-mark" />
-        <div>
-          <div className="brand-name">{portalLabel} Portal</div>
-          <div className="brand-sub">Teams, projects, and reports — managed in one place</div>
-        </div>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <img src="/logo.png" alt="MES Portal" style={{ width: 150, height: "auto", margin: "0 auto 12px", display: "block", marginLeft: "auto", marginRight: "auto" }} />
+        <div className="brand-name">{portalLabel} Portal</div>
+        <div className="brand-sub">Teams, projects, and reports — managed in one place</div>
       </div>
 
       <label className="field-label">Full name{mode === "signup" ? " *" : ""}</label>
