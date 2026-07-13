@@ -57,7 +57,7 @@ function DashboardInner() {
     <div className="screen">
       <header className="topbar">
         <div className="brand small">
-          <img src="/logo.png" alt="MES Portal" style={{ width: 90, height: "auto" }} />
+          <img src="/logo.png" alt="MES Portal" style={{ width: 110, height: "auto" }} />
         </div>
         <div className="topbar-right">
           <span className={`role-badge ${profile.role}`}>{ROLE_LABELS[profile.role]}</span>
