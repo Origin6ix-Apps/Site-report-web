@@ -67,8 +67,10 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
     setLoading(false);
   }
 
+  const managers = profiles.filter((p) => p.role === "manager");
   const admins = profiles.filter((p) => p.role === "admin");
   const supervisors = profiles.filter((p) => p.role === "supervisor");
+  const totalWorkforce = managers.length + admins.length + supervisors.length + employees.length;
   const openProject = projects.find((p) => p.id === openId);
 
   if (loading) {
@@ -117,15 +119,31 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
         <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("projects")}>
           <div className="stat-num">{projects.length}</div><div className="stat-label">Total Projects</div>
         </button>
-        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("admins")}>
-          <div className="stat-num">{admins.length}</div><div className="stat-label">Admins</div>
-        </button>
-        <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("supervisors")}>
-          <div className="stat-num">{supervisors.length}</div><div className="stat-label">Supervisors</div>
-        </button>
         <button className="stat-card" style={{ textAlign: "left", cursor: "pointer", width: "100%", fontFamily: "inherit" }} onClick={() => setTab("employees")}>
-          <div className="stat-num">{employees.length}</div><div className="stat-label">Employees</div>
+          <div className="stat-num">{totalWorkforce}</div><div className="stat-label">Total Employees</div>
         </button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 8 }}>
+        <div className="card-head">Workforce breakdown</div>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          <button onClick={() => setTab("users")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--blue)" }}>{managers.length}</div>
+            <div className="muted" style={{ fontSize: 11 }}>Managers</div>
+          </button>
+          <button onClick={() => setTab("admins")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--blue)" }}>{admins.length}</div>
+            <div className="muted" style={{ fontSize: 11 }}>Admins</div>
+          </button>
+          <button onClick={() => setTab("supervisors")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--blue)" }}>{supervisors.length}</div>
+            <div className="muted" style={{ fontSize: 11 }}>Supervisors</div>
+          </button>
+          <button onClick={() => setTab("employees")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--blue)" }}>{employees.length}</div>
+            <div className="muted" style={{ fontSize: 11 }}>Field Staff</div>
+          </button>
+        </div>
       </div>
 
       {tab === "projects" && (
