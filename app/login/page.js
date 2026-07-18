@@ -60,13 +60,20 @@ function PortalPicker({ onChoose }) {
     <>
       <div className="split-panel blue">
         <img src="/logo.png" alt="MES Portal" style={{ width: 140, height: "auto", marginBottom: 24 }} />
-        <div className="split-tagline">Run your projects, teams, and reports — all in one place.</div>
-        <div className="split-subtagline">One platform for Managers, Admins, and Supervisors — built for real construction site operations.</div>
+        <div className="split-tagline">Run smarter. Grow faster. Stay in control.</div>
+        <ul className="split-feature-list">
+          <li><span className="split-feature-dot" /><span>No more phone calls for project updates.</span></li>
+          <li><span className="split-feature-dot" /><span>No more scattered WhatsApp chats.</span></li>
+          <li><span className="split-feature-dot" /><span>No more spreadsheets to manage operations.</span></li>
+          <li><span className="split-feature-dot" /><span>Track teams, attendance, and productivity in one place.</span></li>
+          <li><span className="split-feature-dot" /><span>Monitor projects, materials, approvals, and daily reports in real time.</span></li>
+          <li><span className="split-feature-dot" /><span>Stay informed and make better decisions — from anywhere.</span></li>
+        </ul>
       </div>
       <div className="split-panel">
         <div style={{ width: 340, maxWidth: "100%" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div className="brand-name" style={{ fontSize: 20 }}>Choose your portal</div>
+            <div className="brand-name" style={{ fontSize: 20 }}>Sign in to your workspace</div>
             <div className="brand-sub">Select where you'd like to sign in</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
