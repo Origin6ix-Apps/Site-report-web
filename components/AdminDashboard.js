@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText } from "lucide-react";
 
@@ -35,11 +35,12 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   const [dailyLogs, setDailyLogs] = useState([]);
   const [scopeItems, setScopeItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
-    setLoading(true);
+    if (!hasLoadedOnce.current) setLoading(true);
     const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*, projects(name)").order("created_at", { ascending: false }),
@@ -59,6 +60,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     setMaterials(m || []);
     setDailyLogs(dl || []);
     setScopeItems(sc || []);
+    hasLoadedOnce.current = true;
     setLoading(false);
   }
 
@@ -220,7 +222,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
                   <td>
                     <select className="select-input" value={draftValue(p, "assigned_supervisor_id") || ""} onChange={(e) => setDraft(p.id, "assigned_supervisor_id", e.target.value || null)}>
                       <option value="">— Unassigned —</option>
-                      {supervisors.map((s) => <option key={s.id} value={s.id}>{s.email}{s.full_name ? ` — ${s.full_name}` : ""}</option>)}
+                      {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
                     </select>
                   </td>
                   <td style={{ minWidth: 130 }}>
@@ -282,7 +284,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
             <label className="field-label">Assign Supervisor</label>
             <select className="select-input" value={form.assigned_supervisor_id} onChange={(e) => setForm({ ...form, assigned_supervisor_id: e.target.value })}>
               <option value="">— Unassigned —</option>
-              {supervisors.map((s) => <option key={s.id} value={s.id}>{s.email}{s.full_name ? ` — ${s.full_name}` : ""}</option>)}
+              {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
             </select>
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
