@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText } from "lucide-react";
+import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet } from "lucide-react";
 
 // Only letters and spaces — no numbers, no special characters.
 function sanitizeName(value) {
@@ -19,6 +19,7 @@ const TABS = [
   { id: "employees", label: "Employees", icon: UsersIcon },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "stores", label: "Stores", icon: Package },
+  { id: "payments", label: "Payments", icon: Wallet },
   { id: "dailyreports", label: "Daily Reports", icon: FileText },
   { id: "users", label: "Users", icon: ShieldCheck },
 ];
@@ -34,6 +35,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   const [materials, setMaterials] = useState([]);
   const [dailyLogs, setDailyLogs] = useState([]);
   const [scopeItems, setScopeItems] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
 
@@ -41,7 +43,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
 
   async function loadAll() {
     if (!hasLoadedOnce.current) setLoading(true);
-    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }] = await Promise.all([
+    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }, { data: pm }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("attendance").select("*, employees(name), projects(name)").order("attendance_date", { ascending: false }).limit(100),
@@ -50,6 +52,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
       supabase.from("materials").select("*"),
       supabase.from("daily_logs").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("scope_items").select("*").order("created_at", { ascending: true }),
+      supabase.from("payments").select("*").order("payment_date", { ascending: false }),
     ]);
     setProjects(p || []);
     setEmployees(e || []);
@@ -60,6 +63,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     setMaterials(m || []);
     setDailyLogs(dl || []);
     setScopeItems(sc || []);
+    setPayments(pm || []);
     hasLoadedOnce.current = true;
     setLoading(false);
   }
@@ -118,6 +122,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
               {tab === "employees" && <EmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
               {tab === "attendance" && <AttendanceTab attendance={attendance} onChange={loadAll} />}
               {tab === "stores" && <StoresTab stockItems={stockItems} materials={materials} user={user} onChange={loadAll} />}
+              {tab === "payments" && <PaymentsTab projects={projects} payments={payments} user={user} onChange={loadAll} />}
               {tab === "dailyreports" && <DailyReportsTab dailyLogs={dailyLogs} />}
               {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
             </>
@@ -522,33 +527,224 @@ function AttendanceTab({ attendance, onChange }) {
   );
 }
 
-export function UsersTab({ profiles, onChange }) {
+export function UsersTab({ profiles, onChange, canManageAccounts }) {
+  const [showNew, setShowNew] = useState(false);
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "", password: "", role: "pending" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
   async function setRole(id, role) {
     await supabase.from("profiles").update({ role }).eq("id", id);
     onChange();
   }
 
+  async function callManageUser(method, body) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch("/api/manage-user", {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || "Something went wrong.");
+    return json;
+  }
+
+  async function createUser() {
+    setError("");
+    if (!form.fullName.trim() || !form.email.trim() || !form.password.trim()) {
+      setError("Full name, email, and password are required.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await callManageUser("POST", { email: form.email, password: form.password, fullName: form.fullName, phone: form.phone, role: form.role });
+      setForm({ fullName: "", email: "", phone: "", password: "", role: "pending" });
+      setShowNew(false);
+      onChange();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeUser(id, email) {
+    if (!confirm(`Permanently remove ${email}? This can't be undone.`)) return;
+    try {
+      await callManageUser("DELETE", { userId: id });
+      onChange();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="data-table">
-        <thead><tr><th>Email</th><th>Name</th><th>Role</th></tr></thead>
-        <tbody>
-          {profiles.map((p) => (
-            <tr key={p.id}>
-              <td>{p.email}</td>
-              <td>{p.full_name || "—"}</td>
-              <td>
-                <select className="select-input" value={p.role} onChange={(e) => setRole(p.id, e.target.value)}>
-                  <option value="pending">Pending</option>
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="supervisor">Supervisor</option>
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      {canManageAccounts && (
+        <div className="row-between" style={{ marginBottom: 12 }}>
+          <span className="dash-sub" style={{ marginBottom: 0 }}>{profiles.length} accounts</span>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}><Plus size={16} /> Add user</button>
+        </div>
+      )}
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead><tr><th>Email</th><th>Name</th><th>Role</th>{canManageAccounts && <th></th>}</tr></thead>
+          <tbody>
+            {profiles.map((p) => (
+              <tr key={p.id}>
+                <td>{p.email}</td>
+                <td>{p.full_name || "—"}</td>
+                <td>
+                  <select className="select-input" value={p.role} onChange={(e) => setRole(p.id, e.target.value)}>
+                    <option value="pending">Pending</option>
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="supervisor">Supervisor</option>
+                  </select>
+                </td>
+                {canManageAccounts && (
+                  <td><button className="icon-btn-sm" onClick={() => removeUser(p.id, p.email)}><Trash2 size={13} /></button></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showNew && (
+        <div className="modal-backdrop" onClick={() => setShowNew(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h2 className="h2" style={{ color: "var(--ink)" }}>Add user</h2>
+              <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => setShowNew(false)}><X size={18} /></button>
+            </div>
+            <label className="field-label">Full name</label>
+            <input className="input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: sanitizeName(e.target.value) })} autoFocus />
+            <label className="field-label">Email</label>
+            <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <label className="field-label">Phone</label>
+            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+            <label className="field-label">Temporary password</label>
+            <input className="input" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="They can change this after signing in" />
+            <label className="field-label">Role</label>
+            <select className="select-input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="pending">Pending</option>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="supervisor">Supervisor</option>
+            </select>
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+            <button className="btn btn-primary btn-block" disabled={busy} onClick={createUser}>{busy ? "Creating…" : "Create account"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentsTab({ projects, payments, user, onChange }) {
+  const [selectedId, setSelectedId] = useState(projects[0]?.id || null);
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [contractDraft, setContractDraft] = useState(null);
+
+  const selected = projects.find((p) => p.id === selectedId) || projects[0];
+  const projPayments = payments.filter((pm) => pm.project_id === selected?.id);
+  const totalPaid = projPayments.reduce((sum, pm) => sum + Number(pm.amount || 0), 0);
+  const balance = (selected?.contract_value || 0) - totalPaid;
+  const knownMethods = [...new Set(payments.map((pm) => pm.method).filter(Boolean))];
+
+  async function addPayment() {
+    if (!selected || !amount || Number(amount) <= 0) return;
+    await supabase.from("payments").insert({
+      project_id: selected.id, amount: Number(amount), method: method.trim() || "Not specified", payment_date: date, added_by: user.id,
+    });
+    setAmount("");
+    setMethod("");
+    onChange();
+  }
+
+  async function removePayment(id) {
+    if (!confirm("Remove this payment record?")) return;
+    await supabase.from("payments").delete().eq("id", id);
+    onChange();
+  }
+
+  async function saveContractValue() {
+    if (contractDraft === null || !selected) return;
+    await supabase.from("projects").update({ contract_value: Number(contractDraft) }).eq("id", selected.id);
+    setContractDraft(null);
+    onChange();
+  }
+
+  if (projects.length === 0) return <div className="empty"><p>No projects yet.</p></div>;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {projects.map((p) => (
+          <button key={p.id} onClick={() => setSelectedId(p.id)} className={`tab-btn ${selected?.id === p.id ? "active" : ""}`} style={{ border: "1px solid var(--border)", borderRadius: 20, padding: "6px 14px" }}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {selected && (
+        <>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="stat-num">
+                {contractDraft !== null ? (
+                  <input type="number" min="0" autoFocus value={contractDraft} onChange={(e) => setContractDraft(e.target.value)} onBlur={saveContractValue} onKeyDown={(e) => e.key === "Enter" && saveContractValue()} style={{ width: 100, fontSize: 20, border: "1px solid var(--line)", borderRadius: 4, padding: "2px 6px" }} />
+                ) : (
+                  <span onClick={() => setContractDraft(selected.contract_value || 0)} style={{ cursor: "pointer" }} title="Click to edit">₹{Number(selected.contract_value || 0).toLocaleString()}</span>
+                )}
+              </div>
+              <div className="stat-label">Contract Value (click to edit)</div>
+            </div>
+            <div className="stat-card"><div className="stat-num">₹{totalPaid.toLocaleString()}</div><div className="stat-label">Paid So Far</div></div>
+            <div className="stat-card"><div className="stat-num" style={{ color: balance > 0 ? "#B91C1C" : "#15803D" }}>₹{balance.toLocaleString()}</div><div className="stat-label">{balance <= 0 ? "Fully Paid" : "Balance Due"}</div></div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-head">Record a payment</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div>
+                <label className="field-label">Amount</label>
+                <input type="number" min="0" className="input" style={{ width: 130 }} value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">Payment method</label>
+                <input className="input" list="payment-methods" style={{ width: 160 }} value={method} onChange={(e) => setMethod(e.target.value)} placeholder="e.g. UPI" />
+                <datalist id="payment-methods">{knownMethods.map((m) => <option key={m} value={m} />)}</datalist>
+              </div>
+              <div>
+                <label className="field-label">Date</label>
+                <input type="date" className="input" style={{ width: 150 }} value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={addPayment} disabled={!amount || Number(amount) <= 0}>Add payment</button>
+            </div>
+          </div>
+
+          <table className="data-table">
+            <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th></th></tr></thead>
+            <tbody>
+              {projPayments.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 20 }}>No payments recorded yet for this project.</td></tr>}
+              {projPayments.map((pm) => (
+                <tr key={pm.id}>
+                  <td>{pm.payment_date}</td>
+                  <td>₹{Number(pm.amount).toLocaleString()}</td>
+                  <td>{pm.method}</td>
+                  <td><button className="icon-btn-sm" onClick={() => removePayment(pm.id)}><Trash2 size={13} /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
   );
 }
