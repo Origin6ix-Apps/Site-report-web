@@ -359,7 +359,8 @@ function MarkAttendanceTab({ employees, attendance, user, onChange }) {
 
 function MaterialsTab({ projects, materials, stockItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ project_id: projects[0]?.id || "", name: "", used: "", required: "", unit: "" });
+  const [form, setForm] = useState({ project_id: projects[0]?.id || "", name: "", used: 0, required: 0, unit: "" });
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!form.project_id && projects.length > 0) {
@@ -369,8 +370,13 @@ function MaterialsTab({ projects, materials, stockItems, user, onChange }) {
 
   async function add() {
     if (!form.name.trim() || !form.project_id) return;
-    await supabase.from("materials").insert({ ...form, logged_by: user.id, status: "ordered", status_updated_at: new Date().toISOString() });
-    setForm({ project_id: projects[0]?.id || "", name: "", used: "", required: "", unit: "" });
+    setError("");
+    const { error: insertError } = await supabase.from("materials").insert({ ...form, logged_by: user.id, status: "ordered", status_updated_at: new Date().toISOString() });
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    setForm({ project_id: projects[0]?.id || "", name: "", used: 0, required: 0, unit: "" });
     setShowNew(false);
     onChange();
   }
@@ -452,6 +458,7 @@ function MaterialsTab({ projects, materials, stockItems, user, onChange }) {
             </div>
             <label className="field-label">Unit</label>
             <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="e.g. bags, tons, pieces" />
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={add}>Order material</button>
           </div>
         </div>

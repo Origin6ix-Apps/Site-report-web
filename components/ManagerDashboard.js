@@ -219,7 +219,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
         </div>
       )}
 
-      {tab === "materials" && <MaterialsOverviewTab projects={projects} materials={materials} profiles={profiles} />}
+      {tab === "materials" && <MaterialsOverviewTab projects={projects} materials={materials} profiles={profiles} stockItems={stockItems} />}
 
       {tab === "analytics" && (
         <AnalyticsTab projects={projects} profiles={profiles} employees={employees} attendance={attendance}
@@ -240,7 +240,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
   );
 }
 
-function MaterialsOverviewTab({ projects, materials, profiles }) {
+function MaterialsOverviewTab({ projects, materials, profiles, stockItems }) {
   // Only show projects that actually have at least one material order — keeps the
   // list short and relevant instead of cluttering it with empty projects.
   const projectsWithMaterials = projects.filter((p) => materials.some((m) => m.project_id === p.id));
@@ -253,6 +253,14 @@ function MaterialsOverviewTab({ projects, materials, profiles }) {
   const selectedProject = projectsWithMaterials.find((p) => p.id === selectedId) || projectsWithMaterials[0];
   const sup = selectedProject ? profiles.find((u) => u.id === selectedProject.assigned_supervisor_id) : null;
   const projMaterials = materials.filter((m) => m.project_id === selectedProject?.id);
+
+  function stockFor(name) {
+    return stockItems.find((s) => s.name === name);
+  }
+  function remainingFor(name, stockQty) {
+    const totalUsed = materials.filter((m) => m.name === name).reduce((sum, m) => sum + (Number(m.used) || 0), 0);
+    return stockQty - totalUsed;
+  }
 
   return (
     <div>
@@ -276,19 +284,24 @@ function MaterialsOverviewTab({ projects, materials, profiles }) {
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="data-table">
-              <thead><tr><th>Material</th><th>Used</th><th>Required</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
+              <thead><tr><th>Material</th><th>Stock</th><th>Used</th><th>Required</th><th>Remaining</th><th>Unit</th><th>Status</th><th>Last updated</th></tr></thead>
               <tbody>
-                {projMaterials.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No materials for this project.</td></tr>}
-                {projMaterials.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.name}</td>
-                    <td>{m.used || 0}</td>
-                    <td>{m.required || 0}</td>
-                    <td>{m.unit || "—"}</td>
-                    <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
-                    <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
-                  </tr>
-                ))}
+                {projMaterials.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No materials for this project.</td></tr>}
+                {projMaterials.map((m) => {
+                  const stock = stockFor(m.name);
+                  return (
+                    <tr key={m.id}>
+                      <td>{m.name}</td>
+                      <td>{stock ? stock.quantity : "—"}</td>
+                      <td>{m.used || 0}</td>
+                      <td>{m.required || 0}</td>
+                      <td>{stock ? remainingFor(m.name, stock.quantity) : "—"}</td>
+                      <td>{m.unit || "—"}</td>
+                      <td><span className={`status-pill ${m.status === "delivered" ? "active" : m.status === "not_delivered" ? "absent" : "pending"}`}>{(m.status || "ordered").replace("_", " ")}</span></td>
+                      <td className="muted">{m.status_updated_at ? new Date(m.status_updated_at).toLocaleDateString() : "—"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
