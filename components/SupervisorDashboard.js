@@ -3,6 +3,17 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Plus, X, FileText, CalendarCheck, Package, Building2, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 
+// Only letters and spaces — no numbers, no special characters.
+function sanitizeName(value) {
+  return value.replace(/[^a-zA-Z\s]/g, "");
+}
+// Digits only, with an optional leading + for country codes.
+function sanitizePhone(value) {
+  let v = value.replace(/[^\d+]/g, "");
+  v = v.replace(/(?!^)\+/g, "");
+  return v;
+}
+
 const TABS = [
   { id: "projects", label: "My Projects", icon: Building2 },
   { id: "employees", label: "Employees", icon: Package },
@@ -11,13 +22,14 @@ const TABS = [
   { id: "dailylog", label: "Daily Log", icon: FileText },
 ];
 
-export default function SupervisorDashboard({ user }) {
+export default function SupervisorDashboard({ user, profile, onLogout }) {
   const [tab, setTab] = useState("projects");
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [dailyLogs, setDailyLogs] = useState([]);
+  const [stockItems, setStockItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -26,49 +38,72 @@ export default function SupervisorDashboard({ user }) {
     setLoading(true);
     const { data: p } = await supabase.from("projects").select("*").eq("assigned_supervisor_id", user.id).order("created_at", { ascending: false });
     const projectIds = (p || []).map((x) => x.id);
-    const [{ data: e }, { data: a }, { data: m }, { data: dl }] = projectIds.length
+    const [{ data: e }, { data: a }, { data: m }, { data: dl }, { data: si }] = projectIds.length
       ? await Promise.all([
           supabase.from("employees").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("attendance").select("*").in("project_id", projectIds),
           supabase.from("materials").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("daily_logs").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
+          supabase.from("stock_items").select("*").order("name", { ascending: true }),
         ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, await supabase.from("stock_items").select("*").order("name", { ascending: true })];
     setProjects(p || []);
     setEmployees(e || []);
     setAttendance(a || []);
     setMaterials(m || []);
     setDailyLogs(dl || []);
+    setStockItems(si || []);
     setLoading(false);
   }
 
   return (
-    <div>
-      <div className="dash-header">
-        <h1 className="h1" style={{ marginBottom: 0 }}>Supervisor Dashboard</h1>
-      </div>
-      <p className="dash-sub">Your assigned sites — reports, crew, and attendance.</p>
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <div className="app-sidebar-brand">
+          <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
+          <span className="brand-name small">MES PORTAL</span>
+        </div>
+        <nav className="app-sidebar-nav">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} className={`app-sidebar-item ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
+                <Icon size={16} /> {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
 
-      <div className="stat-grid">
-        <div className="stat-card"><div className="stat-num">{projects.length}</div><div className="stat-label">My Projects</div></div>
-        <div className="stat-card"><div className="stat-num">{employees.filter((e) => e.active).length}</div><div className="stat-label">Crew Members</div></div>
-      </div>
+      <div className="app-main">
+        <header className="app-main-topbar">
+          <span className="role-badge supervisor" style={{ marginRight: 10 }}>Supervisor</span>
+          <span className="user-chip" style={{ marginRight: 12 }}>{user.email}</span>
+          <button className="icon-btn" title="Log out" onClick={onLogout}>Log out</button>
+        </header>
 
-      <div className="tab-row">
-        {TABS.map((t) => (
-          <button key={t.id} className={`tab-btn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>
-        ))}
-      </div>
+        <div className="app-main-content">
+          <div className="dash-header">
+            <h1 className="h1" style={{ marginBottom: 0 }}>Supervisor Dashboard</h1>
+          </div>
+          <p className="dash-sub">Your assigned sites — reports, crew, and attendance.</p>
 
-      {loading ? <p className="dash-sub">Loading…</p> : (
-        <>
-          {tab === "projects" && <MyProjectsTab projects={projects} employees={employees} onChange={loadAll} />}
-          {tab === "employees" && <MyEmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
-          {tab === "attendance" && <MarkAttendanceTab employees={employees} attendance={attendance} user={user} onChange={loadAll} />}
-          {tab === "materials" && <MaterialsTab projects={projects} materials={materials} user={user} onChange={loadAll} />}
-          {tab === "dailylog" && <DailyLogTab projects={projects} dailyLogs={dailyLogs} user={user} onChange={loadAll} />}
-        </>
-      )}
+          <div className="stat-grid">
+            <div className="stat-card"><div className="stat-num">{projects.length}</div><div className="stat-label">My Projects</div></div>
+            <div className="stat-card"><div className="stat-num">{employees.filter((e) => e.active).length}</div><div className="stat-label">Crew Members</div></div>
+          </div>
+
+          {loading ? <p className="dash-sub">Loading…</p> : (
+            <>
+              {tab === "projects" && <MyProjectsTab projects={projects} employees={employees} onChange={loadAll} />}
+              {tab === "employees" && <MyEmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
+              {tab === "attendance" && <MarkAttendanceTab employees={employees} attendance={attendance} user={user} onChange={loadAll} />}
+              {tab === "materials" && <MaterialsTab projects={projects} materials={materials} stockItems={stockItems} user={user} onChange={loadAll} />}
+              {tab === "dailylog" && <DailyLogTab projects={projects} dailyLogs={dailyLogs} user={user} onChange={loadAll} />}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -195,11 +230,26 @@ function MyEmployeesTab({ employees, projects, user, onChange }) {
               <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => setShowNew(false)}><X size={18} /></button>
             </div>
             <label className="field-label">Name</label>
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
+            <input
+              className="input" list="employee-names" value={form.name} autoFocus
+              onChange={(e) => {
+                const name = sanitizeName(e.target.value);
+                const match = employees.find((emp) => emp.name === name);
+                setForm(match ? { ...form, name, trade: match.trade || form.trade, phone: match.phone || form.phone } : { ...form, name });
+              }}
+            />
+            <div className="field-hint">Letters only — no numbers or special characters.</div>
+            <datalist id="employee-names">
+              {[...new Set(employees.map((emp) => emp.name))].map((n) => <option key={n} value={n} />)}
+            </datalist>
             <label className="field-label">Position / Trade</label>
-            <input className="input" value={form.trade} onChange={(e) => setForm({ ...form, trade: e.target.value })} />
+            <input className="input" list="employee-trades" value={form.trade} onChange={(e) => setForm({ ...form, trade: e.target.value })} />
+            <datalist id="employee-trades">
+              {[...new Set(employees.map((emp) => emp.trade).filter(Boolean))].map((t) => <option key={t} value={t} />)}
+            </datalist>
             <label className="field-label">Phone</label>
-            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+            <div className="field-hint">Numbers only.</div>
             <label className="field-label">Project</label>
             <select className="select-input" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })}>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -284,7 +334,7 @@ function MarkAttendanceTab({ employees, attendance, user, onChange }) {
   );
 }
 
-function MaterialsTab({ projects, materials, user, onChange }) {
+function MaterialsTab({ projects, materials, stockItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ project_id: projects[0]?.id || "", name: "", used: "", required: "", unit: "" });
 
@@ -350,7 +400,17 @@ function MaterialsTab({ projects, materials, user, onChange }) {
               {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <label className="field-label">Material name</label>
-            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cement bags" autoFocus />
+            {stockItems.length > 0 ? (
+              <select className="select-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value, unit: stockItems.find((s) => s.name === e.target.value)?.unit || form.unit })}>
+                <option value="">— Select from stock —</option>
+                {stockItems.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            ) : (
+              <>
+                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cement bags" autoFocus />
+                <div className="muted" style={{ marginTop: 4 }}>No stock items set up by Admin yet — typing a name here won't link to stock tracking.</div>
+              </>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <label className="field-label">Stock used</label>

@@ -2,8 +2,8 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { getCurrentProfile, ROLE_LABELS } from "@/lib/roles";
-import { LogOut, Loader2, Clock } from "lucide-react";
+import { getCurrentProfile } from "@/lib/roles";
+import { Loader2, Clock } from "lucide-react";
 import AdminDashboard from "@/components/AdminDashboard";
 import SupervisorDashboard from "@/components/SupervisorDashboard";
 import ManagerDashboard from "@/components/ManagerDashboard";
@@ -45,29 +45,27 @@ function DashboardInner() {
     return <div className="screen center"><Loader2 className="spin" size={24} color="#111184" /></div>;
   }
 
-  // Which dashboard to actually render: the portal they logged into (if authorized),
-  // otherwise fall back to their own role.
   const requestedPortal = searchParams.get("portal");
   const activeView =
     requestedPortal && (profile.role === "manager" || profile.role === requestedPortal)
       ? requestedPortal
       : profile.role;
 
-  return (
-    <div className="screen">
-      <header className="topbar">
-        <div className="brand small">
-          <img src="/logo.png" alt="MES Portal" style={{ width: 120, height: "auto" }} />
-        </div>
-        <div className="topbar-right">
-          <span className={`role-badge ${profile.role}`}>{ROLE_LABELS[profile.role]}</span>
-          <span className="user-chip">{user.email}</span>
-          <button className="icon-btn" title="Log out" onClick={logout}><LogOut size={18} /></button>
-        </div>
-      </header>
-
-      <div className="content">
-        {profile.role === "pending" && (
+  if (profile.role === "pending") {
+    return (
+      <div className="screen">
+        <header className="topbar">
+          <div className="brand small">
+            <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
+            <span className="brand-name small">MES PORTAL</span>
+          </div>
+          <div className="topbar-right">
+            <span className="role-badge pending">Pending Approval</span>
+            <span className="user-chip">{user.email}</span>
+            <button className="icon-btn" title="Log out" onClick={logout}>Log out</button>
+          </div>
+        </header>
+        <div className="content">
           <div className="pending-screen">
             <div className="icon-wrap"><Clock size={26} /></div>
             <h1 className="h1" style={{ fontSize: 22 }}>Waiting for approval</h1>
@@ -76,12 +74,16 @@ function DashboardInner() {
               your access from Users management.
             </p>
           </div>
-        )}
-
-        {activeView === "admin" && <AdminDashboard user={user} />}
-        {activeView === "supervisor" && <SupervisorDashboard user={user} />}
-        {activeView === "manager" && <ManagerDashboard user={user} />}
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <>
+      {activeView === "admin" && <AdminDashboard user={user} profile={profile} onLogout={logout} />}
+      {activeView === "supervisor" && <SupervisorDashboard user={user} profile={profile} onLogout={logout} />}
+      {activeView === "manager" && <ManagerDashboard user={user} profile={profile} onLogout={logout} />}
+    </>
   );
 }

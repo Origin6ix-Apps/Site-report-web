@@ -207,3 +207,49 @@ a { color: var(--blue); text-decoration: none; }
 .pending-screen { max-width: 420px; margin: 0 auto; text-align: center; padding-top: 80px; }
 .pending-screen .icon-wrap { width: 56px; height: 56px; border-radius: 50%; background: var(--blue-light);
   display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: var(--blue); }
+
+/* ---------- Split-screen login ---------- */
+
+.split-screen { min-height: 100vh; display: flex; }
+.split-panel { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; }
+.split-panel.blue { background: var(--blue); color: #fff; }
+.split-tagline { font-family: 'Montserrat'; font-weight: 800; font-size: 34px; line-height: 1.25; color: #fff; max-width: 420px; }
+.split-subtagline { font-size: 15px; color: rgba(255,255,255,0.85); margin-top: 16px; max-width: 380px; line-height: 1.6; }
+.split-feature-list { list-style: none; margin: 24px 0 0; padding: 0; max-width: 380px; }
+.split-feature-list li { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; font-size: 14px; color: rgba(255,255,255,0.92); line-height: 1.5; }
+.split-feature-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; margin-top: 7px; flex-shrink: 0; }
+
+@media (max-width: 860px) {
+  .split-screen { flex-direction: column; }
+  .split-panel { padding: 32px 24px; }
+  .split-panel.blue { min-height: 240px; }
+}
+
+/* ---------- Sidebar app shell ---------- */
+
+.app-shell { display: flex; min-height: 100vh; }
+.app-sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 16px 12px; }
+.app-sidebar-brand { display: flex; align-items: center; gap: 8px; padding: 8px 10px 20px; }
+.app-sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.app-sidebar-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px;
+  font-family: 'Montserrat'; font-weight: 600; font-size: 13.5px; color: var(--muted); background: none; border: none;
+  cursor: pointer; text-align: left; width: 100%; }
+.app-sidebar-item:hover { background: var(--blue-light); color: var(--blue); }
+.app-sidebar-item.active { background: var(--blue); color: #fff; }
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.app-main-topbar { display: flex; align-items: center; justify-content: flex-end; padding: 14px 24px;
+  border-bottom: 1px solid var(--border); background: #fff; }
+.app-main-content { flex: 1; padding: 24px; overflow-x: hidden; }
+
+@media (max-width: 860px) {
+  .app-shell { flex-direction: column; }
+  .app-sidebar { width: 100%; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 10px; }
+  .app-sidebar-brand { display: none; }
+  .app-sidebar-nav { flex-direction: row; }
+  .app-sidebar-item { white-space: nowrap; }
+}
+
+/* ---------- Input validation hint ---------- */
+
+.field-hint { font-size: 10.5px; color: var(--muted); margin-top: 3px; }

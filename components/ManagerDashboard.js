@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { UsersTab } from "@/components/AdminDashboard";
-import { X } from "lucide-react";
+import { X, Building2, ShieldCheck, HardHat, Users as UsersIcon, Package } from "lucide-react";
 
 const TABS = [
   { id: "projects", label: "Projects" },
@@ -26,7 +26,7 @@ function presentDaysThisMonth(employeeId, attendance) {
   return attendance.filter((a) => a.employee_id === employeeId && a.attendance_date?.startsWith(prefix) && a.status === "present").length;
 }
 
-export default function ManagerDashboard() {
+export default function ManagerDashboard({ user, profile, onLogout }) {
   const [tab, setTab] = useState("projects");
   const [projects, setProjects] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -61,10 +61,43 @@ export default function ManagerDashboard() {
   const supervisors = profiles.filter((p) => p.role === "supervisor");
   const openProject = projects.find((p) => p.id === openId);
 
-  if (loading) return <p className="dash-sub">Loading…</p>;
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <div className="app-main"><div className="app-main-content"><p className="dash-sub">Loading…</p></div></div>
+      </div>
+    );
+  }
+
+  const NAV_ICONS = { projects: Building2, admins: ShieldCheck, supervisors: HardHat, employees: UsersIcon, materials: Package, users: ShieldCheck };
 
   return (
-    <div>
+    <div className="app-shell">
+      <aside className="app-sidebar">
+        <div className="app-sidebar-brand">
+          <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
+          <span className="brand-name small">MES PORTAL</span>
+        </div>
+        <nav className="app-sidebar-nav">
+          {TABS.map((t) => {
+            const Icon = NAV_ICONS[t.id] || Building2;
+            return (
+              <button key={t.id} className={`app-sidebar-item ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
+                <Icon size={16} /> {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <div className="app-main">
+        <header className="app-main-topbar">
+          <span className="role-badge manager" style={{ marginRight: 10 }}>Manager</span>
+          <span className="user-chip" style={{ marginRight: 12 }}>{user?.email}</span>
+          <button className="icon-btn" title="Log out" onClick={onLogout}>Log out</button>
+        </header>
+
+        <div className="app-main-content">
       <div className="dash-header">
         <h1 className="h1" style={{ marginBottom: 0 }}>Manager Dashboard</h1>
       </div>
@@ -85,11 +118,17 @@ export default function ManagerDashboard() {
         </button>
       </div>
 
-      <div className="tab-row">
-        {TABS.map((t) => (
-          <button key={t.id} className={`tab-btn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>
-        ))}
-      </div>
+      {projects.length > 0 && (
+        <div className="card" style={{ marginBottom: 8 }}>
+          <div className="card-head">Overall progress across all projects</div>
+          <div className="progress-track" style={{ height: 12 }}>
+            <div className="progress-fill" style={{ width: `${Math.round(projects.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / projects.length)}%` }} />
+          </div>
+          <div className="muted" style={{ marginTop: 6 }}>
+            {Math.round(projects.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / projects.length)}% average completion across {projects.length} project{projects.length === 1 ? "" : "s"}
+          </div>
+        </div>
+      )}
 
       {tab === "projects" && (
         projects.length === 0 ? <div className="empty"><p>No projects yet.</p></div> : (
@@ -184,6 +223,8 @@ export default function ManagerDashboard() {
           materials={materials} dailyLogs={dailyLogs} onClose={() => setOpenId(null)}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 }
