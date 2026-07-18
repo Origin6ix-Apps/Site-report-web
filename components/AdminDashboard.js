@@ -357,6 +357,12 @@ function ScopeModal({ project, items, onClose, onChange }) {
     }
   }
 
+  async function removeDocument() {
+    if (!confirm("Remove this document? You can upload a new one right after.")) return;
+    await supabase.from("projects").update({ scope_document_url: "" }).eq("id", project.id);
+    onChange();
+  }
+
   const done = items.filter((i) => i.completed).length;
 
   return (
@@ -381,8 +387,9 @@ function ScopeModal({ project, items, onClose, onChange }) {
         {uploading && <div className="muted" style={{ marginTop: 4 }}>Uploading…</div>}
         {error && <div className="error-box" style={{ marginTop: 8 }}>{error}</div>}
         {project.scope_document_url && (
-          <div style={{ marginTop: 6 }}>
+          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10 }}>
             <a href={project.scope_document_url} target="_blank" rel="noreferrer">View uploaded document</a>
+            <button className="icon-btn-sm" onClick={removeDocument} title="Remove document"><Trash2 size={13} /></button>
           </div>
         )}
 
