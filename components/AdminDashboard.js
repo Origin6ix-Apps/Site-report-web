@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet } from "lucide-react";
+import SidebarNav from "@/components/SidebarNav";
 
 // Only letters and spaces — no numbers, no special characters.
 function sanitizeName(value) {
@@ -82,16 +83,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
           <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
           <span className="brand-name small">MES PORTAL</span>
         </div>
-        <nav className="app-sidebar-nav">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} className={`app-sidebar-item ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-                <Icon size={16} /> {t.label}
-              </button>
-            );
-          })}
-        </nav>
+        <SidebarNav tabs={TABS} activeTab={tab} onSelect={setTab} />
       </aside>
 
       <div className="app-main">
@@ -136,7 +128,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
 function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [scopeProjectId, setScopeProjectId] = useState(null);
-  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
+  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState("");
 
@@ -148,7 +140,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
       setError(insertError.message);
       return;
     }
-    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
     setShowNew(false);
     onChange();
   }
@@ -165,7 +157,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
       setError(insertError.message);
       return;
     }
-    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
     setShowNew(false);
     await onChange();
     setScopeProjectId(data.id);
@@ -290,6 +282,12 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
             <select className="select-input" value={form.assigned_supervisor_id} onChange={(e) => setForm({ ...form, assigned_supervisor_id: e.target.value })}>
               <option value="">— Unassigned —</option>
               {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+            </select>
+            <label className="field-label">Status</label>
+            <select className="select-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              <option value="active">Active</option>
+              <option value="on_hold">On hold</option>
+              <option value="completed">Completed</option>
             </select>
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />

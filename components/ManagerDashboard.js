@@ -3,15 +3,16 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { UsersTab } from "@/components/AdminDashboard";
 import { X, Building2, ShieldCheck, HardHat, Users as UsersIcon, Package, BarChart3 } from "lucide-react";
+import SidebarNav from "@/components/SidebarNav";
 
 const TABS = [
-  { id: "projects", label: "Projects" },
-  { id: "admins", label: "Admins" },
-  { id: "supervisors", label: "Supervisors" },
-  { id: "employees", label: "Employees" },
-  { id: "materials", label: "Materials" },
-  { id: "analytics", label: "Business Analytics & Performance" },
-  { id: "users", label: "Users" },
+  { id: "projects", label: "Projects", icon: Building2 },
+  { id: "admins", label: "Admins", icon: ShieldCheck },
+  { id: "supervisors", label: "Supervisors", icon: HardHat },
+  { id: "employees", label: "Employees", icon: UsersIcon },
+  { id: "materials", label: "Materials", icon: Package },
+  { id: "analytics", label: "Business Analytics & Performance", icon: BarChart3 },
+  { id: "users", label: "Users", icon: ShieldCheck },
 ];
 
 function daysInCurrentMonth() {
@@ -81,8 +82,6 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
     );
   }
 
-  const NAV_ICONS = { projects: Building2, admins: ShieldCheck, supervisors: HardHat, employees: UsersIcon, materials: Package, analytics: BarChart3, users: ShieldCheck };
-
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -90,16 +89,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
           <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
           <span className="brand-name small">MES PORTAL</span>
         </div>
-        <nav className="app-sidebar-nav">
-          {TABS.map((t) => {
-            const Icon = NAV_ICONS[t.id] || Building2;
-            return (
-              <button key={t.id} className={`app-sidebar-item ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-                <Icon size={16} /> {t.label}
-              </button>
-            );
-          })}
-        </nav>
+        <SidebarNav tabs={TABS} activeTab={tab} onSelect={setTab} />
       </aside>
 
       <div className="app-main">

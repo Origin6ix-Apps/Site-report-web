@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Plus, X, FileText, CalendarCheck, Package, Building2, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import SidebarNav from "@/components/SidebarNav";
 
 // Only letters and spaces — no numbers, no special characters.
 function sanitizeName(value) {
@@ -66,16 +67,7 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
           <img src="/logo.png" alt="MES Portal" className="brand-mark small" />
           <span className="brand-name small">MES PORTAL</span>
         </div>
-        <nav className="app-sidebar-nav">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} className={`app-sidebar-item ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-                <Icon size={16} /> {t.label}
-              </button>
-            );
-          })}
-        </nav>
+        <SidebarNav tabs={TABS} activeTab={tab} onSelect={setTab} />
       </aside>
 
       <div className="app-main">
@@ -192,6 +184,12 @@ function MyProjectsTab({ projects, employees, scopeItems, onChange }) {
 function MyEmployeesTab({ employees, projects, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ name: "", trade: "", phone: "", project_id: projects[0]?.id || "" });
+
+  useEffect(() => {
+    if (!form.project_id && projects.length > 0) {
+      setForm((f) => ({ ...f, project_id: projects[0].id }));
+    }
+  }, [projects]);
 
   async function addEmployee() {
     if (!form.name.trim() || !form.project_id) return;
@@ -363,6 +361,12 @@ function MaterialsTab({ projects, materials, stockItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ project_id: projects[0]?.id || "", name: "", used: "", required: "", unit: "" });
 
+  useEffect(() => {
+    if (!form.project_id && projects.length > 0) {
+      setForm((f) => ({ ...f, project_id: projects[0].id }));
+    }
+  }, [projects]);
+
   async function add() {
     if (!form.name.trim() || !form.project_id) return;
     await supabase.from("materials").insert({ ...form, logged_by: user.id, status: "ordered", status_updated_at: new Date().toISOString() });
@@ -485,6 +489,12 @@ function DailyLogTab({ projects, dailyLogs, user, onChange }) {
   const [photos, setPhotos] = useState([]); // { id, previewUrl, blob }
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (!projectId && projects.length > 0) {
+      setProjectId(projects[0].id);
+    }
+  }, [projects]);
 
   async function handleUpload(e) {
     const files = Array.from(e.target.files || []).slice(0, 8 - photos.length);
