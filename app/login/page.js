@@ -73,7 +73,7 @@ function PortalPicker({ onChoose }) {
           <li><span className="split-feature-dot" /><span>No more spreadsheets to manage operations.</span></li>
           <li><span className="split-feature-dot" /><span>Track teams, attendance, and productivity in one place.</span></li>
           <li><span className="split-feature-dot" /><span>Monitor projects, materials, approvals, and daily reports in real time.</span></li>
-          <li><span className="split-feature-dot" /><span>Stay informed and make better decisions — from anywhere.</span></li>
+          <li><span className="split-feature-dot" /><span>Stay informed and make better decisions from anywhere.</span></li>
         </ul>
       </div>
       <div className="split-panel">
