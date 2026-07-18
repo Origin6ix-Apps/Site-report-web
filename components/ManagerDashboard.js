@@ -545,7 +545,7 @@ function AnalyticsTab({ projects, profiles, employees, attendance, materials, pa
       </div>
 
       <h3 className="h2" style={{ fontSize: 14, marginBottom: 8 }}>Executive KPIs</h3>
-      <div className="stat-grid" style={{ marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ marginBottom: 20 }}>
         <div className="stat-card"><div className="stat-num">₹{totalRevenue.toLocaleString()}</div><div className="stat-label">Revenue (filtered)</div></div>
         <div className="stat-card"><div className="stat-num">₹{allTimeRevenue.toLocaleString()}</div><div className="stat-label">Total Revenue (all time)</div></div>
         <div className="stat-card"><div className="stat-num">₹{outstandingTotal.toLocaleString()}</div><div className="stat-label">Outstanding Payments</div></div>

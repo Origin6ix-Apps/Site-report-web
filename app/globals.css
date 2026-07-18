@@ -166,6 +166,9 @@ a { color: var(--blue); text-decoration: none; }
 .role-badge.pending { background: #F1F5F9; color: var(--muted); }
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 16px 0 24px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 16px 0 24px; }
+@media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 .stat-card { background: #fff; border-radius: 8px; padding: 16px 18px; border: 1px solid var(--border); border-left: 4px solid var(--blue); }
 .stat-num { font-family: 'Montserrat'; font-weight: 800; font-size: 28px; color: var(--blue); line-height: 1; }
 .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px;

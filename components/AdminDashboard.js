@@ -128,7 +128,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
 function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [scopeProjectId, setScopeProjectId] = useState(null);
-  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
+  const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState("");
 
@@ -140,7 +140,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
       setError(insertError.message);
       return;
     }
-    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
     setShowNew(false);
     onChange();
   }
@@ -157,7 +157,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
       setError(insertError.message);
       return;
     }
-    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "", status: "active" });
+    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
     setShowNew(false);
     await onChange();
     setScopeProjectId(data.id);
@@ -234,11 +234,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
                     })()}
                   </td>
                   <td>
-                    <select className="select-input" value={draftValue(p, "status")} onChange={(e) => setDraft(p.id, "status", e.target.value)}>
-                      <option value="active">Active</option>
-                      <option value="on_hold">On hold</option>
-                      <option value="completed">Completed</option>
-                    </select>
+                    <span className={`status-pill ${p.status === "completed" ? "active" : "pending"}`}>{p.status === "completed" ? "Completed" : "Active"}</span>
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -283,12 +279,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
               <option value="">— Unassigned —</option>
               {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
             </select>
-            <label className="field-label">Status</label>
-            <select className="select-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="active">Active</option>
-              <option value="on_hold">On hold</option>
-              <option value="completed">Completed</option>
-            </select>
+            <div className="field-hint" style={{ marginBottom: 8 }}>Status is set automatically based on completion — no need to choose it here.</div>
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
             <label className="field-label" style={{ marginTop: 4 }}>Scope of work</label>
