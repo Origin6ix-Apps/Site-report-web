@@ -69,10 +69,6 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     pending: profiles.filter((p) => p.role === "pending").length,
   };
 
-  const overallProgress = projects.length
-    ? Math.round(projects.reduce((sum, p) => sum + (p.completion_percentage || 0), 0) / projects.length)
-    : 0;
-
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
@@ -112,14 +108,6 @@ export default function AdminDashboard({ user, profile, onLogout }) {
             <div className="stat-card"><div className="stat-num">{stats.pending}</div><div className="stat-label">Pending Approval</div></div>
           </div>
 
-          {projects.length > 0 && (
-            <div className="card" style={{ marginBottom: 8 }}>
-              <div className="card-head">Overall progress across all projects</div>
-              <div className="progress-track" style={{ height: 12 }}><div className="progress-fill" style={{ width: `${overallProgress}%` }} /></div>
-              <div className="muted" style={{ marginTop: 6 }}>{overallProgress}% average completion across {projects.length} project{projects.length === 1 ? "" : "s"}</div>
-            </div>
-          )}
-
           {loading ? (
             <p className="dash-sub">Loading…</p>
           ) : (
@@ -156,6 +144,24 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
     setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
     setShowNew(false);
     onChange();
+  }
+
+  async function createAndOpenScope() {
+    if (!form.name.trim()) return;
+    setError("");
+    const { data, error: insertError } = await supabase
+      .from("projects")
+      .insert({ ...form, deadline: form.deadline || null, assigned_supervisor_id: form.assigned_supervisor_id || null, owner_id: user.id })
+      .select()
+      .single();
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    setForm({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
+    setShowNew(false);
+    await onChange();
+    setScopeProjectId(data.id);
   }
 
   function draftValue(p, field) {
@@ -197,7 +203,9 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
               return (
                 <tr key={p.id}>
                   <td>
-                    <strong>{p.name}</strong>
+                    <button onClick={() => setScopeProjectId(p.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }} title="Manage scope of work">
+                      <strong style={{ color: "var(--blue)", textDecoration: "underline" }}>{p.name}</strong>
+                    </button>
                     {p.scope_of_work && (
                       <div className="muted" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.scope_of_work}>
                         {p.scope_of_work}
@@ -216,20 +224,14 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
                     </select>
                   </td>
                   <td style={{ minWidth: 130 }}>
-                    <div className="progress-track"><div className="progress-fill" style={{ width: `${draftValue(p, "completion_percentage")}%` }} /></div>
+                    <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
                     {(() => {
                       const items = scopeItems.filter((s) => s.project_id === p.id);
                       if (items.length > 0) {
                         const done = items.filter((s) => s.completed).length;
                         return <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · {done}/{items.length} scope items done</div>;
                       }
-                      return (
-                        <input
-                          type="number" min="0" max="100" value={draftValue(p, "completion_percentage")}
-                          onChange={(e) => setDraft(p.id, "completion_percentage", Number(e.target.value))}
-                          style={{ width: 50, marginTop: 6, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }}
-                        />
-                      );
+                      return <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · no scope items yet</div>;
                     })()}
                   </td>
                   <td>
@@ -241,7 +243,6 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button className="icon-btn-sm" onClick={() => setScopeProjectId(p.id)}>Scope</button>
                       <button
                         className="btn btn-primary btn-sm"
                         style={{ opacity: hasDraft ? 1 : 0.4, cursor: hasDraft ? "pointer" : "not-allowed", padding: "4px 10px", fontSize: 11 }}
@@ -285,11 +286,11 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
             </select>
             <label className="field-label">Deadline</label>
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
-            <label className="field-label">Scope of work</label>
-            <textarea className="textarea" rows={3} value={form.scope_of_work} onChange={(e) => setForm({ ...form, scope_of_work: e.target.value })} placeholder="What does this project actually cover?" />
-            <div className="field-hint">Optional short summary — after creating the project, use the "Scope" button to build a checklist or upload a document instead of typing everything here.</div>
+            <label className="field-label" style={{ marginTop: 4 }}>Scope of work</label>
+            <div className="field-hint" style={{ marginBottom: 8 }}>Create the project first, then use this button to build a checklist or attach a document — progress will track automatically from there.</div>
+            <button className="btn btn-primary btn-sm" disabled={!form.name.trim()} onClick={createAndOpenScope}>Create project & set scope</button>
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
-            <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={createProject}>Create project</button>
+            <button className="btn btn-primary btn-block" style={{ marginTop: 10 }} disabled={!form.name.trim()} onClick={createProject}>Create project</button>
           </div>
         </div>
       )}
