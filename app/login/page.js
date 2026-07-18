@@ -13,7 +13,7 @@ const PORTALS = [
       "Assign or change any role instantly — no approval delays",
       "Track revenue, payments, and outstanding balances in real time",
       "See company-wide progress, attendance, and material stock at a glance",
-      "Get a management-ready view — top delays, pending payments, upcoming deadlines",
+      "Get a management-ready view of projects",
     ],
   },
   {
