@@ -33,13 +33,14 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   const [stockItems, setStockItems] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [dailyLogs, setDailyLogs] = useState([]);
+  const [scopeItems, setScopeItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
     setLoading(true);
-    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }] = await Promise.all([
+    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("attendance").select("*, employees(name), projects(name)").order("attendance_date", { ascending: false }).limit(100),
@@ -47,6 +48,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
       supabase.from("stock_items").select("*").order("name", { ascending: true }),
       supabase.from("materials").select("*"),
       supabase.from("daily_logs").select("*, projects(name)").order("created_at", { ascending: false }),
+      supabase.from("scope_items").select("*").order("created_at", { ascending: true }),
     ]);
     setProjects(p || []);
     setEmployees(e || []);
@@ -56,6 +58,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     setStockItems(si || []);
     setMaterials(m || []);
     setDailyLogs(dl || []);
+    setScopeItems(sc || []);
     setLoading(false);
   }
 
@@ -121,7 +124,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
             <p className="dash-sub">Loading…</p>
           ) : (
             <>
-              {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} user={user} onChange={loadAll} />}
+              {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} scopeItems={scopeItems} user={user} onChange={loadAll} />}
               {tab === "employees" && <EmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
               {tab === "attendance" && <AttendanceTab attendance={attendance} onChange={loadAll} />}
               {tab === "stores" && <StoresTab stockItems={stockItems} materials={materials} user={user} onChange={loadAll} />}
@@ -135,8 +138,9 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   );
 }
 
-function ProjectsTab({ projects, supervisors, user, onChange }) {
+function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
+  const [scopeProjectId, setScopeProjectId] = useState(null);
   const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
   const [drafts, setDrafts] = useState({});
   const [error, setError] = useState("");
@@ -213,11 +217,20 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
                   </td>
                   <td style={{ minWidth: 130 }}>
                     <div className="progress-track"><div className="progress-fill" style={{ width: `${draftValue(p, "completion_percentage")}%` }} /></div>
-                    <input
-                      type="number" min="0" max="100" value={draftValue(p, "completion_percentage")}
-                      onChange={(e) => setDraft(p.id, "completion_percentage", Number(e.target.value))}
-                      style={{ width: 50, marginTop: 6, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }}
-                    /> %
+                    {(() => {
+                      const items = scopeItems.filter((s) => s.project_id === p.id);
+                      if (items.length > 0) {
+                        const done = items.filter((s) => s.completed).length;
+                        return <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · {done}/{items.length} scope items done</div>;
+                      }
+                      return (
+                        <input
+                          type="number" min="0" max="100" value={draftValue(p, "completion_percentage")}
+                          onChange={(e) => setDraft(p.id, "completion_percentage", Number(e.target.value))}
+                          style={{ width: 50, marginTop: 6, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }}
+                        />
+                      );
+                    })()}
                   </td>
                   <td>
                     <select className="select-input" value={draftValue(p, "status")} onChange={(e) => setDraft(p.id, "status", e.target.value)}>
@@ -228,6 +241,7 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
+                      <button className="icon-btn-sm" onClick={() => setScopeProjectId(p.id)}>Scope</button>
                       <button
                         className="btn btn-primary btn-sm"
                         style={{ opacity: hasDraft ? 1 : 0.4, cursor: hasDraft ? "pointer" : "not-allowed", padding: "4px 10px", fontSize: 11 }}
@@ -273,11 +287,118 @@ function ProjectsTab({ projects, supervisors, user, onChange }) {
             <input type="date" className="input" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
             <label className="field-label">Scope of work</label>
             <textarea className="textarea" rows={3} value={form.scope_of_work} onChange={(e) => setForm({ ...form, scope_of_work: e.target.value })} placeholder="What does this project actually cover?" />
+            <div className="field-hint">Optional short summary — after creating the project, use the "Scope" button to build a checklist or upload a document instead of typing everything here.</div>
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={createProject}>Create project</button>
           </div>
         </div>
       )}
+
+      {scopeProjectId && (
+        <ScopeModal
+          project={projects.find((p) => p.id === scopeProjectId)}
+          items={scopeItems.filter((s) => s.project_id === scopeProjectId)}
+          onClose={() => setScopeProjectId(null)}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function ScopeModal({ project, items, onClose, onChange }) {
+  const [text, setText] = useState(project.scope_of_work || "");
+  const [newItem, setNewItem] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveText() {
+    await supabase.from("projects").update({ scope_of_work: text }).eq("id", project.id);
+    onChange();
+  }
+
+  async function addItem() {
+    if (!newItem.trim()) return;
+    await supabase.from("scope_items").insert({ project_id: project.id, description: newItem.trim() });
+    setNewItem("");
+    onChange();
+  }
+
+  async function toggleItem(id, completed) {
+    await supabase.from("scope_items").update({ completed: !completed }).eq("id", id);
+    onChange();
+  }
+
+  async function removeItem(id) {
+    await supabase.from("scope_items").delete().eq("id", id);
+    onChange();
+  }
+
+  async function handleUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const path = `scope-docs/${project.id}/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("site-photos").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("site-photos").getPublicUrl(path);
+      await supabase.from("projects").update({ scope_document_url: pub.publicUrl }).eq("id", project.id);
+      onChange();
+    } catch (err) {
+      setError(err.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  const done = items.filter((i) => i.completed).length;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ width: 480, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Scope — {project.name}</h2>
+          <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        {items.length > 0 && (
+          <div className="dash-sub" style={{ marginBottom: 8 }}>
+            Progress is calculated automatically: {done}/{items.length} items checked = {project.completion_percentage}%
+          </div>
+        )}
+
+        <label className="field-label">Short summary (optional)</label>
+        <textarea className="textarea" rows={2} value={text} onChange={(e) => setText(e.target.value)} onBlur={saveText} placeholder="What does this project actually cover?" />
+
+        <label className="field-label">Attach a scope document</label>
+        <input type="file" accept=".pdf,.doc,.docx,image/*" onChange={handleUpload} disabled={uploading} />
+        {uploading && <div className="muted" style={{ marginTop: 4 }}>Uploading…</div>}
+        {error && <div className="error-box" style={{ marginTop: 8 }}>{error}</div>}
+        {project.scope_document_url && (
+          <div style={{ marginTop: 6 }}>
+            <a href={project.scope_document_url} target="_blank" rel="noreferrer">View uploaded document</a>
+          </div>
+        )}
+
+        <label className="field-label" style={{ marginTop: 16 }}>Checklist items</label>
+        {items.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>No items yet — add some below, or just attach a document above.</div>}
+        {items.map((item) => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+            <input type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id, item.completed)} />
+            <span style={{ flex: 1, fontSize: 13, textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>
+              {item.description}
+            </span>
+            <button className="icon-btn-sm" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <input className="input" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="e.g. Foundation work" onKeyDown={(e) => e.key === "Enter" && addItem()} />
+          <button className="btn btn-primary btn-sm" onClick={addItem}><Plus size={14} /> Add</button>
+        </div>
+      </div>
     </div>
   );
 }

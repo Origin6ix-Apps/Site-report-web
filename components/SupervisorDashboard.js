@@ -30,6 +30,7 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
   const [materials, setMaterials] = useState([]);
   const [dailyLogs, setDailyLogs] = useState([]);
   const [stockItems, setStockItems] = useState([]);
+  const [scopeItems, setScopeItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -38,21 +39,23 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
     setLoading(true);
     const { data: p } = await supabase.from("projects").select("*").eq("assigned_supervisor_id", user.id).order("created_at", { ascending: false });
     const projectIds = (p || []).map((x) => x.id);
-    const [{ data: e }, { data: a }, { data: m }, { data: dl }, { data: si }] = projectIds.length
+    const [{ data: e }, { data: a }, { data: m }, { data: dl }, { data: si }, { data: sc }] = projectIds.length
       ? await Promise.all([
           supabase.from("employees").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("attendance").select("*").in("project_id", projectIds),
           supabase.from("materials").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("daily_logs").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("stock_items").select("*").order("name", { ascending: true }),
+          supabase.from("scope_items").select("*").in("project_id", projectIds).order("created_at", { ascending: true }),
         ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, await supabase.from("stock_items").select("*").order("name", { ascending: true })];
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, await supabase.from("stock_items").select("*").order("name", { ascending: true }), { data: [] }];
     setProjects(p || []);
     setEmployees(e || []);
     setAttendance(a || []);
     setMaterials(m || []);
     setDailyLogs(dl || []);
     setStockItems(si || []);
+    setScopeItems(sc || []);
     setLoading(false);
   }
 
@@ -95,7 +98,7 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
 
           {loading ? <p className="dash-sub">Loading…</p> : (
             <>
-              {tab === "projects" && <MyProjectsTab projects={projects} employees={employees} onChange={loadAll} />}
+              {tab === "projects" && <MyProjectsTab projects={projects} employees={employees} scopeItems={scopeItems} onChange={loadAll} />}
               {tab === "employees" && <MyEmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
               {tab === "attendance" && <MarkAttendanceTab employees={employees} attendance={attendance} user={user} onChange={loadAll} />}
               {tab === "materials" && <MaterialsTab projects={projects} materials={materials} stockItems={stockItems} user={user} onChange={loadAll} />}
@@ -108,13 +111,18 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
   );
 }
 
-function MyProjectsTab({ projects, employees, onChange }) {
+function MyProjectsTab({ projects, employees, scopeItems, onChange }) {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(0);
 
   async function saveCompletion(id) {
     await supabase.from("projects").update({ completion_percentage: draft }).eq("id", id);
     setEditingId(null);
+    onChange();
+  }
+
+  async function toggleScopeItem(id, completed) {
+    await supabase.from("scope_items").update({ completed: !completed }).eq("id", id);
     onChange();
   }
 
@@ -125,6 +133,7 @@ function MyProjectsTab({ projects, employees, onChange }) {
     <div className="grid">
       {projects.map((p) => {
         const team = employees.filter((e) => e.project_id === p.id);
+        const items = scopeItems.filter((s) => s.project_id === p.id);
         const isEditing = editingId === p.id;
         return (
           <div key={p.id} className="project-card">
@@ -133,9 +142,14 @@ function MyProjectsTab({ projects, employees, onChange }) {
             <div className="project-meta">Site — {p.location || "—"}</div>
             {p.deadline && <div className="project-meta">Deadline — {p.deadline}</div>}
             {p.scope_of_work && <div className="project-meta" style={{ marginTop: 4 }}>Scope — {p.scope_of_work}</div>}
+            {p.scope_document_url && (
+              <div style={{ marginTop: 4 }}><a href={p.scope_document_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>View scope document</a></div>
+            )}
             <div style={{ marginTop: 10 }}>
               <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
-              {isEditing ? (
+              {items.length > 0 ? (
+                <div className="muted" style={{ marginTop: 4 }}>{p.completion_percentage}% · {items.filter((i) => i.completed).length}/{items.length} scope items done</div>
+              ) : isEditing ? (
                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6 }}>
                   <input type="number" min="0" max="100" value={draft} onChange={(e) => setDraft(Number(e.target.value))}
                     style={{ width: 55, border: "1px solid var(--line)", borderRadius: 3, padding: "2px 6px", fontSize: 12 }} />
@@ -149,6 +163,17 @@ function MyProjectsTab({ projects, employees, onChange }) {
                 </div>
               )}
             </div>
+            {items.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Scope checklist</div>
+                {items.map((item) => (
+                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "3px 0" }}>
+                    <input type="checkbox" checked={item.completed} onChange={() => toggleScopeItem(item.id, item.completed)} />
+                    <span style={{ textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>{item.description}</span>
+                  </label>
+                ))}
+              </div>
+            )}
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Team ({team.length})</div>
               {team.length === 0 ? <span className="muted">No crew assigned yet.</span> : (
