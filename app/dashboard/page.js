@@ -9,6 +9,7 @@ import SupervisorDashboard from "@/components/SupervisorDashboard";
 import ManagerDashboard from "@/components/ManagerDashboard";
 import SalesManagerDashboard from "@/components/SalesManagerDashboard";
 import AccountExecutiveDashboard from "@/components/AccountExecutiveDashboard";
+import FinanceDashboard from "@/components/FinanceDashboard";
 
 export default function DashboardPage() {
   return (
@@ -88,6 +89,7 @@ function DashboardInner() {
       {activeView === "manager" && <ManagerDashboard user={user} profile={profile} onLogout={logout} />}
       {activeView === "sales_manager" && <SalesManagerDashboard user={user} profile={profile} onLogout={logout} />}
       {activeView === "account_executive" && <AccountExecutiveDashboard user={user} profile={profile} onLogout={logout} />}
+      {activeView === "finance" && <FinanceDashboard user={user} profile={profile} onLogout={logout} />}
     </>
   );
 }

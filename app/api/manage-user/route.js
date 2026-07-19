@@ -30,7 +30,7 @@ export async function POST(req) {
     if (!email?.trim() || !password?.trim() || !fullName?.trim()) {
       return NextResponse.json({ error: "Full name, email, and password are required." }, { status: 400 });
     }
-    if (!["admin", "manager", "supervisor", "pending"].includes(role)) {
+    if (!["admin", "manager", "supervisor", "sales_manager", "account_executive", "finance", "pending"].includes(role)) {
       return NextResponse.json({ error: "Invalid role." }, { status: 400 });
     }
 

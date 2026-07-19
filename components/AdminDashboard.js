@@ -659,6 +659,7 @@ export function UsersTab({ profiles, onChange, canManageAccounts }) {
                     <option value="supervisor">Supervisor</option>
                     <option value="sales_manager">Sales Manager</option>
                     <option value="account_executive">Account Executive</option>
+                    <option value="finance">Finance</option>
                   </select>
                 </td>
                 {canManageAccounts && (
@@ -693,6 +694,7 @@ export function UsersTab({ profiles, onChange, canManageAccounts }) {
               <option value="supervisor">Supervisor</option>
                     <option value="sales_manager">Sales Manager</option>
                     <option value="account_executive">Account Executive</option>
+                    <option value="finance">Finance</option>
             </select>
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={busy} onClick={createUser}>{busy ? "Creating…" : "Create account"}</button>
@@ -952,7 +954,7 @@ function WorkOrdersTab({ projects, vendors, workOrders, user, onChange }) {
   );
 }
 
-function PaymentsTab({ projects, payments, user, onChange }) {
+export function PaymentsTab({ projects, payments, user, onChange }) {
   const [selectedId, setSelectedId] = useState(projects[0]?.id || null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
