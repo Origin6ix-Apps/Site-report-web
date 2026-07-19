@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { UsersTab } from "@/components/AdminDashboard";
-import { X, Building2, ShieldCheck, HardHat, Users as UsersIcon, Package, BarChart3 } from "lucide-react";
+import { UsersTab, ProspectsTab, ClientManagementTab } from "@/components/AdminDashboard";
+import { X, Building2, ShieldCheck, HardHat, Users as UsersIcon, Package, BarChart3, TrendingUp } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 
 const TABS = [
+  { id: "prospects", label: "Prospects", icon: TrendingUp },
+  { id: "clients", label: "Sales Pipeline", icon: Building2 },
   { id: "projects", label: "Projects", icon: Building2 },
   { id: "admins", label: "Admins", icon: ShieldCheck },
   { id: "supervisors", label: "Supervisors", icon: HardHat },
@@ -38,6 +40,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
   const [dailyLogs, setDailyLogs] = useState([]);
   const [payments, setPayments] = useState([]);
   const [stockItems, setStockItems] = useState([]);
+  const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
   const hasLoadedOnce = useRef(false);
@@ -46,7 +49,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
 
   async function loadAll() {
     if (!hasLoadedOnce.current) setLoading(true);
-    const [{ data: p }, { data: pr }, { data: e }, { data: a }, { data: m }, { data: dl }, { data: pm }, { data: si }] = await Promise.all([
+    const [{ data: p }, { data: pr }, { data: e }, { data: a }, { data: m }, { data: dl }, { data: pm }, { data: si }, { data: pd }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*").order("created_at", { ascending: false }),
@@ -55,6 +58,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
       supabase.from("daily_logs").select("*").order("created_at", { ascending: false }),
       supabase.from("payments").select("*").order("payment_date", { ascending: false }),
       supabase.from("stock_items").select("*"),
+      supabase.from("prospects").select("*").order("created_at", { ascending: false }),
     ]);
     setProjects(p || []);
     setProfiles(pr || []);
@@ -64,6 +68,7 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
     setDailyLogs(dl || []);
     setPayments(pm || []);
     setStockItems(si || []);
+    setProspects(pd || []);
     hasLoadedOnce.current = true;
     setLoading(false);
   }
@@ -135,6 +140,10 @@ export default function ManagerDashboard({ user, profile, onLogout }) {
           </button>
         </div>
       </div>
+
+      {tab === "prospects" && <ProspectsTab prospects={prospects} user={user} onChange={loadAll} />}
+
+      {tab === "clients" && <ClientManagementTab prospects={prospects} supervisors={supervisors} user={user} onChange={loadAll} />}
 
       {tab === "projects" && (
         projects.length === 0 ? <div className="empty"><p>No projects yet.</p></div> : (

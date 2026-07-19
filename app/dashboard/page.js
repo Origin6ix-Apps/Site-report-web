@@ -7,6 +7,8 @@ import { Loader2, Clock } from "lucide-react";
 import AdminDashboard from "@/components/AdminDashboard";
 import SupervisorDashboard from "@/components/SupervisorDashboard";
 import ManagerDashboard from "@/components/ManagerDashboard";
+import SalesManagerDashboard from "@/components/SalesManagerDashboard";
+import AccountExecutiveDashboard from "@/components/AccountExecutiveDashboard";
 
 export default function DashboardPage() {
   return (
@@ -84,6 +86,8 @@ function DashboardInner() {
       {activeView === "admin" && <AdminDashboard user={user} profile={profile} onLogout={logout} />}
       {activeView === "supervisor" && <SupervisorDashboard user={user} profile={profile} onLogout={logout} />}
       {activeView === "manager" && <ManagerDashboard user={user} profile={profile} onLogout={logout} />}
+      {activeView === "sales_manager" && <SalesManagerDashboard user={user} profile={profile} onLogout={logout} />}
+      {activeView === "account_executive" && <AccountExecutiveDashboard user={user} profile={profile} onLogout={logout} />}
     </>
   );
 }

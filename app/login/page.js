@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ShieldCheck, Building2, HardHat, ChevronRight, Check } from "lucide-react";
+import { ShieldCheck, Building2, HardHat, ChevronRight, Check, Briefcase, TrendingUp } from "lucide-react";
 
 const PORTALS = [
   {
@@ -40,6 +40,29 @@ const PORTALS = [
   },
 ];
 
+const LEADS_PORTALS = [
+  {
+    id: "sales_manager", label: "Sales Manager", icon: Briefcase,
+    tagline: "Every prospect, judged fairly.",
+    features: [
+      "Log every incoming prospect in one place",
+      "Qualify or disqualify each one with a clear decision",
+      "Qualified prospects move straight into the sales pipeline",
+      "Nothing falls through the cracks before it's even reviewed",
+    ],
+  },
+  {
+    id: "account_executive", label: "Account Executive", icon: TrendingUp,
+    tagline: "Take a lead all the way to won.",
+    features: [
+      "Track every qualified lead through Site Visit and Quote",
+      "Mark a quote Qualified or Disqualified in one click",
+      "Won deals convert straight into a real project",
+      "Lost deals keep their reason on file — useful if they come back",
+    ],
+  },
+];
+
 // Only letters and spaces — no numbers, no special characters.
 function sanitizeName(value) {
   return value.replace(/[^a-zA-Z\s]/g, "");
@@ -52,16 +75,19 @@ function sanitizePhone(value) {
 }
 
 export default function LoginPage() {
-  const [portal, setPortal] = useState(null);
+  const [screen, setScreen] = useState("main"); // "main" | "leads" | a portal id
+  const activePortal = [...PORTALS, ...LEADS_PORTALS].find((p) => p.id === screen);
 
   return (
     <div className="split-screen">
-      {portal === null ? <PortalPicker onChoose={setPortal} /> : <PortalLogin portal={portal} onBack={() => setPortal(null)} />}
+      {screen === "main" && <PortalPicker onChoose={setScreen} onLeadsPortal={() => setScreen("leads")} />}
+      {screen === "leads" && <LeadsPortalPicker onChoose={setScreen} onBack={() => setScreen("main")} />}
+      {activePortal && <PortalLogin portal={screen} onBack={() => setScreen(LEADS_PORTALS.some((p) => p.id === screen) ? "leads" : "main")} />}
     </div>
   );
 }
 
-function PortalPicker({ onChoose }) {
+function PortalPicker({ onChoose, onLeadsPortal }) {
   return (
     <>
       <div className="split-panel blue">
@@ -73,7 +99,7 @@ function PortalPicker({ onChoose }) {
           <li><span className="split-feature-dot" /><span>No more spreadsheets to manage operations.</span></li>
           <li><span className="split-feature-dot" /><span>Track teams, attendance, and productivity in one place.</span></li>
           <li><span className="split-feature-dot" /><span>Monitor projects, materials, approvals, and daily reports in real time.</span></li>
-          <li><span className="split-feature-dot" /><span>Stay informed and make better decisions from anywhere.</span></li>
+          <li><span className="split-feature-dot" /><span>Stay informed and make better decisions — from anywhere.</span></li>
         </ul>
       </div>
       <div className="split-panel">
@@ -84,6 +110,63 @@ function PortalPicker({ onChoose }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {PORTALS.map((p) => {
+              const Icon = p.icon;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => onChoose(p.id)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    background: "#fff", border: "1px solid var(--border)", borderRadius: 10,
+                    padding: "16px 18px", width: "100%", cursor: "pointer", fontFamily: "Montserrat",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Icon size={20} color="var(--blue)" />
+                    <span style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>{p.label}</span>
+                  </span>
+                  <ChevronRight size={18} color="var(--blue)" />
+                </button>
+              );
+            })}
+            <button
+              onClick={onLeadsPortal}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--blue-light)", border: "1px solid var(--blue-tint)", borderRadius: 10,
+                padding: "16px 18px", width: "100%", cursor: "pointer", fontFamily: "Montserrat",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <TrendingUp size={20} color="var(--blue)" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>Leads Portal</span>
+              </span>
+              <ChevronRight size={18} color="var(--blue)" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function LeadsPortalPicker({ onChoose, onBack }) {
+  return (
+    <>
+      <div className="split-panel blue">
+        <img src="/logo.png" alt="MES Portal" style={{ width: 140, height: "auto", marginBottom: 24 }} />
+        <div className="split-tagline">From first contact to closed deal.</div>
+        <div className="split-subtagline">The Leads Portal covers the front of your business — prospects coming in, and the pipeline that turns them into real projects.</div>
+      </div>
+      <div className="split-panel">
+        <div style={{ width: 340, maxWidth: "100%" }}>
+          <button className="link-btn" style={{ marginTop: 0, marginBottom: 16 }} onClick={onBack}>← Choose a different portal</button>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div className="brand-name" style={{ fontSize: 20 }}>Leads Portal</div>
+            <div className="brand-sub">Select your role</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {LEADS_PORTALS.map((p) => {
               const Icon = p.icon;
               return (
                 <button
@@ -119,7 +202,7 @@ function PortalLogin({ portal, onBack }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const info = PORTALS.find((p) => p.id === portal);
+  const info = [...PORTALS, ...LEADS_PORTALS].find((p) => p.id === portal);
   const portalLabel = info?.label || portal;
 
   async function submit() {

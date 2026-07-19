@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet } from "lucide-react";
+import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet, TrendingUp } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 
 // Only letters and spaces — no numbers, no special characters.
@@ -37,6 +37,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   const [dailyLogs, setDailyLogs] = useState([]);
   const [scopeItems, setScopeItems] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
 
@@ -44,7 +45,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
 
   async function loadAll() {
     if (!hasLoadedOnce.current) setLoading(true);
-    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }, { data: pm }] = await Promise.all([
+    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }, { data: pm }, { data: pd }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("attendance").select("*, employees(name), projects(name)").order("attendance_date", { ascending: false }).limit(100),
@@ -54,6 +55,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
       supabase.from("daily_logs").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("scope_items").select("*").order("created_at", { ascending: true }),
       supabase.from("payments").select("*").order("payment_date", { ascending: false }),
+      supabase.from("prospects").select("*").order("created_at", { ascending: false }),
     ]);
     setProjects(p || []);
     setEmployees(e || []);
@@ -65,6 +67,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     setDailyLogs(dl || []);
     setScopeItems(sc || []);
     setPayments(pm || []);
+    setProspects(pd || []);
     hasLoadedOnce.current = true;
     setLoading(false);
   }
@@ -591,6 +594,8 @@ export function UsersTab({ profiles, onChange, canManageAccounts }) {
                     <option value="admin">Admin</option>
                     <option value="manager">Manager</option>
                     <option value="supervisor">Supervisor</option>
+                    <option value="sales_manager">Sales Manager</option>
+                    <option value="account_executive">Account Executive</option>
                   </select>
                 </td>
                 {canManageAccounts && (
@@ -623,6 +628,8 @@ export function UsersTab({ profiles, onChange, canManageAccounts }) {
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
               <option value="supervisor">Supervisor</option>
+                    <option value="sales_manager">Sales Manager</option>
+                    <option value="account_executive">Account Executive</option>
             </select>
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={busy} onClick={createUser}>{busy ? "Creating…" : "Create account"}</button>
@@ -896,6 +903,282 @@ function AdminImageLightbox({ src, onClose }) {
       </div>
       <div style={{ overflow: "auto", maxWidth: "92vw", maxHeight: "85vh" }} onClick={(e) => e.stopPropagation()}>
         <img src={src} alt="" style={{ transform: `scale(${zoom})`, transition: "transform 0.15s", maxWidth: "92vw", maxHeight: "85vh", display: "block" }} />
+      </div>
+    </div>
+  );
+}
+
+const PIPELINE_STAGES = [
+  { id: "lead", label: "Lead" },
+  { id: "site_visit", label: "Site Visit" },
+  { id: "quote", label: "Quote" },
+  { id: "won", label: "Won" },
+  { id: "lost", label: "Lost" },
+];
+
+export function ProspectsTab({ prospects, user, onChange }) {
+  const [showNew, setShowNew] = useState(false);
+  const [form, setForm] = useState({ business_name: "", contact_person: "", phone: "", email: "", source: "", notes: "" });
+  const [error, setError] = useState("");
+
+  const pending = prospects.filter((p) => p.stage === "pending_review");
+  const decided = prospects.filter((p) => p.stage !== "pending_review");
+
+  async function addProspect() {
+    if (!form.business_name.trim()) return;
+    setError("");
+    const { error: insertError } = await supabase.from("prospects").insert({
+      ...form, contact_person: sanitizeName(form.contact_person), phone: sanitizePhone(form.phone), created_by: user.id,
+    });
+    if (insertError) { setError(insertError.message); return; }
+    setForm({ business_name: "", contact_person: "", phone: "", email: "", source: "", notes: "" });
+    setShowNew(false);
+    onChange();
+  }
+
+  async function decide(id, stage) {
+    await supabase.from("prospects").update({ stage, updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  return (
+    <div>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <span className="dash-sub" style={{ marginBottom: 0 }}>Enter prospects here, then Qualify or Disqualify each one — Qualified prospects move into Client Management as a Lead.</span>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}><Plus size={16} /> Add prospect</button>
+      </div>
+
+      <h3 className="h2" style={{ fontSize: 13, marginBottom: 8 }}>Pending review ({pending.length})</h3>
+      <div style={{ overflowX: "auto", marginBottom: 24 }}>
+        <table className="data-table">
+          <thead><tr><th>Business</th><th>Contact</th><th>Phone</th><th>Source</th><th></th></tr></thead>
+          <tbody>
+            {pending.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>Nothing waiting for review.</td></tr>}
+            {pending.map((p) => (
+              <tr key={p.id}>
+                <td><strong>{p.business_name}</strong></td>
+                <td>{p.contact_person || "—"}</td>
+                <td>{p.phone || "—"}</td>
+                <td>{p.source || "—"}</td>
+                <td>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn btn-primary btn-sm" style={{ background: "#15803D", fontSize: 11, padding: "4px 10px" }} onClick={() => decide(p.id, "lead")}>Qualified</button>
+                    <button className="btn btn-primary btn-sm" style={{ background: "#B91C1C", fontSize: 11, padding: "4px 10px" }} onClick={() => decide(p.id, "disqualified")}>Disqualified</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="h2" style={{ fontSize: 13, marginBottom: 8 }}>Already decided ({decided.length})</h3>
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead><tr><th>Business</th><th>Contact</th><th>Status</th></tr></thead>
+          <tbody>
+            {decided.length === 0 && <tr><td colSpan={3} className="muted" style={{ padding: 20 }}>Nothing decided yet.</td></tr>}
+            {decided.map((p) => (
+              <tr key={p.id}>
+                <td>{p.business_name}</td>
+                <td>{p.contact_person || "—"}</td>
+                <td>
+                  {p.stage === "disqualified" ? (
+                    <span className="status-pill absent">Disqualified</span>
+                  ) : (
+                    <span className="status-pill active">Qualified — {PIPELINE_STAGES.find((s) => s.id === p.stage)?.label || p.stage}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showNew && (
+        <div className="modal-backdrop" onClick={() => setShowNew(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h2 className="h2" style={{ color: "var(--ink)" }}>Add prospect</h2>
+              <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => setShowNew(false)}><X size={18} /></button>
+            </div>
+            <label className="field-label">Business name</label>
+            <input className="input" value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} autoFocus />
+            <label className="field-label">Contact person</label>
+            <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: sanitizeName(e.target.value) })} />
+            <label className="field-label">Phone</label>
+            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+            <label className="field-label">Email</label>
+            <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <label className="field-label">Source</label>
+            <input className="input" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="e.g. Referral, Website, Cold call" />
+            <label className="field-label">Notes</label>
+            <textarea className="textarea" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+            <button className="btn btn-primary btn-block" disabled={!form.business_name.trim()} onClick={addProspect}>Add prospect</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ClientManagementTab({ prospects, supervisors, user, onChange }) {
+  const [showConvertId, setShowConvertId] = useState(null);
+  const qualified = prospects.filter((p) => p.stage !== "pending_review" && p.stage !== "disqualified");
+
+  const openValue = qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
+  const wonCount = qualified.filter((p) => p.stage === "won").length;
+  const lostCount = qualified.filter((p) => p.stage === "lost").length;
+  const closedCount = wonCount + lostCount;
+  const winRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : 0;
+
+  async function setSiteVisit(id, value) {
+    await supabase.from("prospects").update({ site_visit: value, updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  async function setQuoteDecision(id, value) {
+    await supabase.from("prospects").update({ quote_decision: value, updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  async function saveLostReason(id, reason) {
+    await supabase.from("prospects").update({ lost_reason: reason }).eq("id", id);
+    onChange();
+  }
+
+  return (
+    <div>
+      <div className="stat-grid" style={{ marginBottom: 16 }}>
+        <div className="stat-card"><div className="stat-num">₹{openValue.toLocaleString()}</div><div className="stat-label">Open Pipeline Value</div></div>
+        <div className="stat-card"><div className="stat-num">{qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").length}</div><div className="stat-label">Active Leads</div></div>
+        <div className="stat-card"><div className="stat-num">{winRate}%</div><div className="stat-label">Win Rate</div></div>
+        <div className="stat-card"><div className="stat-num">{wonCount}</div><div className="stat-label">Won</div></div>
+      </div>
+
+      <div className="dash-sub" style={{ marginBottom: 12 }}>
+        Set Site Visit to Yes, then decide the Quote — Qualified moves a lead to Won, Disqualified moves it to Lost (with a reason kept on file).
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead>
+            <tr><th>Business</th><th>Contact</th><th>Site Visit</th><th>Quote</th><th>Status</th><th>Reason (if Lost)</th><th></th></tr>
+          </thead>
+          <tbody>
+            {qualified.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No qualified leads yet — qualify a prospect first.</td></tr>}
+            {qualified.map((p) => (
+              <tr key={p.id}>
+                <td><strong>{p.business_name}</strong></td>
+                <td>{p.contact_person || "—"}</td>
+                <td>
+                  <select className="select-input" value={p.site_visit || "pending"} onChange={(e) => setSiteVisit(p.id, e.target.value)}>
+                    <option value="pending">Pending</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </td>
+                <td>
+                  <select
+                    className="select-input" value={p.quote_decision || "pending"}
+                    disabled={p.site_visit !== "yes"}
+                    onChange={(e) => setQuoteDecision(p.id, e.target.value)}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="disqualified">Disqualified</option>
+                  </select>
+                </td>
+                <td>
+                  {p.stage === "won" && <span className="status-pill active">Won</span>}
+                  {p.stage === "lost" && <span className="status-pill absent">Lost</span>}
+                  {p.stage === "lead" && <span className="status-pill pending">Lead</span>}
+                </td>
+                <td>
+                  {p.stage === "lost" ? (
+                    <input
+                      className="input" defaultValue={p.lost_reason || ""} placeholder="Why was this lost?"
+                      onBlur={(e) => { if (e.target.value !== p.lost_reason) saveLostReason(p.id, e.target.value); }}
+                      style={{ minWidth: 160 }}
+                    />
+                  ) : "—"}
+                </td>
+                <td>
+                  {p.stage === "won" && !p.converted_project_id && (
+                    <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowConvertId(p.id)}>Convert to project</button>
+                  )}
+                  {p.converted_project_id && <span className="muted" style={{ fontSize: 11 }}>✓ Converted</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showConvertId && (
+        <ConvertProspectModal
+          prospect={qualified.find((p) => p.id === showConvertId)}
+          supervisors={supervisors}
+          user={user}
+          onClose={() => setShowConvertId(null)}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConvertProspectModal({ prospect, supervisors, user, onClose, onChange }) {
+  const [projectName, setProjectName] = useState(prospect.business_name);
+  const [supervisorId, setSupervisorId] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function convert() {
+    if (!projectName.trim()) return;
+    setBusy(true);
+    setError("");
+    const { data: project, error: insertError } = await supabase
+      .from("projects")
+      .insert({
+        name: projectName.trim(),
+        client: prospect.business_name,
+        point_of_contact: prospect.contact_person,
+        point_of_contact_phone: prospect.phone,
+        contract_value: prospect.estimated_value,
+        assigned_supervisor_id: supervisorId || null,
+        owner_id: user.id,
+      })
+      .select()
+      .single();
+    if (insertError) { setError(insertError.message); setBusy(false); return; }
+
+    await supabase.from("prospects").update({ converted_project_id: project.id }).eq("id", prospect.id);
+    setBusy(false);
+    onChange();
+    onClose();
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Convert to project</h2>
+          <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="dash-sub" style={{ marginBottom: 12 }}>
+          Client, contact info, and estimated value (₹{Number(prospect.estimated_value).toLocaleString()}) carry over automatically as the contract value.
+        </div>
+        <label className="field-label">Project name</label>
+        <input className="input" value={projectName} onChange={(e) => setProjectName(e.target.value)} autoFocus />
+        <label className="field-label">Assign Supervisor</label>
+        <select className="select-input" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)}>
+          <option value="">— Unassigned —</option>
+          {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+        </select>
+        {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+        <button className="btn btn-primary btn-block" disabled={busy || !projectName.trim()} onClick={convert}>{busy ? "Creating…" : "Create project from this client"}</button>
       </div>
     </div>
   );
