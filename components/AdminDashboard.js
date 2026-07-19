@@ -919,11 +919,17 @@ const PIPELINE_STAGES = [
 export function ProspectsTab({ prospects, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showHistoryId, setShowHistoryId] = useState(null);
   const [form, setForm] = useState({ business_name: "", contact_person: "", phone: "", email: "", source: "", requirement: "", notes: "" });
   const [error, setError] = useState("");
 
   const pending = prospects.filter((p) => p.stage === "pending_review");
   const decided = prospects.filter((p) => p.stage !== "pending_review");
+
+  function priorCount(p) {
+    if (!p.client_id) return 0;
+    return prospects.filter((pp) => pp.client_id === p.client_id && pp.id !== p.id).length;
+  }
 
   async function addProspect() {
     if (!form.business_name.trim()) return;
@@ -963,7 +969,16 @@ export function ProspectsTab({ prospects, user, onChange }) {
             {pending.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>Nothing waiting for review.</td></tr>}
             {pending.map((p) => (
               <tr key={p.id}>
-                <td><strong>{p.business_name}</strong></td>
+                <td>
+                  <strong>{p.business_name}</strong>
+                  {priorCount(p) > 0 && (
+                    <div>
+                      <button className="icon-btn-sm" style={{ color: "#A16207", fontSize: 10.5 }} onClick={() => setShowHistoryId(p.id)}>
+                        ↻ Returning client ({priorCount(p)} prior)
+                      </button>
+                    </div>
+                  )}
+                </td>
                 <td>{p.contact_person || "—"}</td>
                 <td>{p.phone || "—"}</td>
                 <td>{p.source || "—"}</td>
@@ -989,7 +1004,16 @@ export function ProspectsTab({ prospects, user, onChange }) {
             {decided.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 20 }}>Nothing decided yet.</td></tr>}
             {decided.map((p) => (
               <tr key={p.id}>
-                <td>{p.business_name}</td>
+                <td>
+                  {p.business_name}
+                  {priorCount(p) > 0 && (
+                    <div>
+                      <button className="icon-btn-sm" style={{ color: "#A16207", fontSize: 10.5 }} onClick={() => setShowHistoryId(p.id)}>
+                        ↻ Returning client ({priorCount(p)} prior)
+                      </button>
+                    </div>
+                  )}
+                </td>
                 <td>{p.contact_person || "—"}</td>
                 <td>
                   {p.stage === "disqualified" ? (
@@ -1009,6 +1033,15 @@ export function ProspectsTab({ prospects, user, onChange }) {
           </tbody>
         </table>
       </div>
+
+      {showHistoryId && (
+        <ClientHistoryModal
+          clientId={prospects.find((p) => p.id === showHistoryId)?.client_id}
+          currentProspectId={showHistoryId}
+          prospects={prospects}
+          onClose={() => setShowHistoryId(null)}
+        />
+      )}
 
       {showNew && (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>
@@ -1044,6 +1077,44 @@ export function ProspectsTab({ prospects, user, onChange }) {
           onChange={onChange}
         />
       )}
+    </div>
+  );
+}
+
+function ClientHistoryModal({ clientId, currentProspectId, prospects, onClose }) {
+  const history = prospects.filter((p) => p.client_id === clientId && p.id !== currentProspectId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  function outcomeLabel(p) {
+    if (p.stage === "disqualified") return { text: "Disqualified at prospect stage", color: "#B91C1C" };
+    if (p.stage === "lost") return { text: "Lost" + (p.lost_reason ? ` — ${p.lost_reason}` : ""), color: "#B91C1C" };
+    if (p.stage === "won") return { text: "Won" + (p.converted_project_id ? " (became a project)" : ""), color: "#15803D" };
+    return { text: "Still in progress — " + (PIPELINE_STAGES.find((s) => s.id === p.stage)?.label || p.stage), color: "#A16207" };
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Client history</h2>
+          <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="dash-sub" style={{ marginBottom: 12 }}>Every past time this business has approached before — so you know what happened last time before deciding again.</div>
+        {history.length === 0 ? (
+          <div className="muted">No prior history found.</div>
+        ) : (
+          history.map((p) => {
+            const outcome = outcomeLabel(p);
+            return (
+              <div key={p.id} style={{ borderBottom: "1px solid var(--line)", padding: "10px 0" }}>
+                <div className="muted" style={{ fontSize: 11 }}>{p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: outcome.color }}>{outcome.text}</div>
+                {p.requirement && <div style={{ fontSize: 12, marginTop: 2 }}>Requirement: {p.requirement}</div>}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -1104,7 +1175,13 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
   const [showConvertId, setShowConvertId] = useState(null);
   const [showQuoteId, setShowQuoteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [showHistoryId, setShowHistoryId] = useState(null);
   const qualified = prospects.filter((p) => p.stage !== "pending_review" && p.stage !== "disqualified");
+
+  function priorCount(p) {
+    if (!p.client_id) return 0;
+    return prospects.filter((pp) => pp.client_id === p.client_id && pp.id !== p.id).length;
+  }
 
   const openValue = qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
   const wonValue = qualified.filter((p) => p.stage === "won").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
@@ -1151,7 +1228,16 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
             {qualified.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No qualified leads yet — qualify a prospect first.</td></tr>}
             {qualified.map((p) => (
               <tr key={p.id}>
-                <td><strong>{p.business_name}</strong></td>
+                <td>
+                  <strong>{p.business_name}</strong>
+                  {priorCount(p) > 0 && (
+                    <div>
+                      <button className="icon-btn-sm" style={{ color: "#A16207", fontSize: 10.5 }} onClick={() => setShowHistoryId(p.id)}>
+                        ↻ Returning ({priorCount(p)} prior)
+                      </button>
+                    </div>
+                  )}
+                </td>
                 <td style={{ maxWidth: 180, whiteSpace: "normal" }}>{p.requirement || "—"}</td>
                 <td>{p.contact_person || "—"}</td>
                 <td>
@@ -1226,6 +1312,15 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
           prospect={qualified.find((p) => p.id === editingId)}
           onClose={() => setEditingId(null)}
           onChange={onChange}
+        />
+      )}
+
+      {showHistoryId && (
+        <ClientHistoryModal
+          clientId={qualified.find((p) => p.id === showHistoryId)?.client_id}
+          currentProspectId={showHistoryId}
+          prospects={prospects}
+          onClose={() => setShowHistoryId(null)}
         />
       )}
     </div>
@@ -1353,6 +1448,7 @@ function ConvertProspectModal({ prospect, supervisors, user, onClose, onChange }
       .insert({
         name: projectName.trim(),
         client: prospect.business_name,
+        client_id: prospect.client_id || null,
         point_of_contact: prospect.contact_person,
         point_of_contact_phone: prospect.phone,
         contract_value: prospect.estimated_value,
