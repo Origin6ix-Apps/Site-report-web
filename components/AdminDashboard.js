@@ -955,13 +955,13 @@ function WorkOrdersTab({ projects, vendors, workOrders, user, onChange }) {
 }
 
 export function PaymentsTab({ projects, payments, user, onChange }) {
-  const [selectedId, setSelectedId] = useState(projects[0]?.id || null);
+  const [selectedId, setSelectedId] = useState(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [contractDraft, setContractDraft] = useState(null);
 
-  const selected = projects.find((p) => p.id === selectedId) || projects[0];
+  const selected = projects.find((p) => p.id === selectedId) || null;
   const projPayments = payments.filter((pm) => pm.project_id === selected?.id);
   const totalPaid = projPayments.reduce((sum, pm) => sum + Number(pm.amount || 0), 0);
   const balance = (selected?.contract_value || 0) - totalPaid;
@@ -1002,6 +1002,10 @@ export function PaymentsTab({ projects, payments, user, onChange }) {
         ))}
       </div>
 
+      {!selected && (
+        <div className="empty"><p>Click a project above to see its payment details.</p></div>
+      )}
+
       {selected && (
         <>
           <div className="stat-grid">
@@ -1019,25 +1023,30 @@ export function PaymentsTab({ projects, payments, user, onChange }) {
             <div className="stat-card"><div className="stat-num" style={{ color: balance > 0 ? "#B91C1C" : "#15803D" }}>₹{balance.toLocaleString()}</div><div className="stat-label">{balance <= 0 ? "Fully Paid" : "Balance Due"}</div></div>
           </div>
 
-          <div className="card" style={{ marginBottom: 16 }}>
-            <div className="card-head">Record a payment</div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div>
-                <label className="field-label">Amount</label>
-                <input type="number" min="0" className="input" style={{ width: 130 }} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          {balance > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-head">Record a payment</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  <label className="field-label">Amount</label>
+                  <input type="number" min="0" className="input" style={{ width: 130 }} value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </div>
+                <div>
+                  <label className="field-label">Payment method</label>
+                  <input className="input" list="payment-methods" style={{ width: 160 }} value={method} onChange={(e) => setMethod(e.target.value)} placeholder="e.g. UPI" />
+                  <datalist id="payment-methods">{knownMethods.map((m) => <option key={m} value={m} />)}</datalist>
+                </div>
+                <div>
+                  <label className="field-label">Date</label>
+                  <input type="date" className="input" style={{ width: 150 }} value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={addPayment} disabled={!amount || Number(amount) <= 0}>Add payment</button>
               </div>
-              <div>
-                <label className="field-label">Payment method</label>
-                <input className="input" list="payment-methods" style={{ width: 160 }} value={method} onChange={(e) => setMethod(e.target.value)} placeholder="e.g. UPI" />
-                <datalist id="payment-methods">{knownMethods.map((m) => <option key={m} value={m} />)}</datalist>
-              </div>
-              <div>
-                <label className="field-label">Date</label>
-                <input type="date" className="input" style={{ width: 150 }} value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
-              <button className="btn btn-primary btn-sm" onClick={addPayment} disabled={!amount || Number(amount) <= 0}>Add payment</button>
             </div>
-          </div>
+          )}
+          {balance <= 0 && (
+            <div className="dash-sub" style={{ marginBottom: 16 }}>This project is fully paid — no further payments needed.</div>
+          )}
 
           <table className="data-table">
             <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th></th></tr></thead>
@@ -1061,7 +1070,7 @@ export function PaymentsTab({ projects, payments, user, onChange }) {
 
 function StoresTab({ stockItems, materials, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ name: "", quantity: "", unit: "" });
+  const [form, setForm] = useState({ name: "", quantity: "", unit: "", unit_price: "" });
   const [error, setError] = useState("");
 
   function usedFor(name) {
@@ -1072,16 +1081,21 @@ function StoresTab({ stockItems, materials, user, onChange }) {
     if (!form.name.trim()) return;
     setError("");
     const { error: insertError } = await supabase.from("stock_items").insert({
-      name: form.name.trim(), quantity: Math.max(0, Number(form.quantity) || 0), unit: form.unit, added_by: user.id,
+      name: form.name.trim(), quantity: Math.max(0, Number(form.quantity) || 0), unit: form.unit, unit_price: Math.max(0, Number(form.unit_price) || 0), added_by: user.id,
     });
     if (insertError) { setError(insertError.message); return; }
-    setForm({ name: "", quantity: "", unit: "" });
+    setForm({ name: "", quantity: "", unit: "", unit_price: "" });
     setShowNew(false);
     onChange();
   }
 
   async function updateQuantity(id, quantity) {
     await supabase.from("stock_items").update({ quantity: Math.max(0, quantity), updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  async function updateUnitPrice(id, unitPrice) {
+    await supabase.from("stock_items").update({ unit_price: Math.max(0, unitPrice), updated_at: new Date().toISOString() }).eq("id", id);
     onChange();
   }
 
@@ -1100,9 +1114,9 @@ function StoresTab({ stockItems, materials, user, onChange }) {
 
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>Material</th><th>Total Stock</th><th>Used (all projects)</th><th>Remaining</th><th>Unit</th><th></th></tr></thead>
+          <thead><tr><th>Material</th><th>Total Stock</th><th>Unit Price</th><th>Used (all projects)</th><th>Remaining</th><th>Unit</th><th></th></tr></thead>
           <tbody>
-            {stockItems.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No stock items added yet.</td></tr>}
+            {stockItems.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No stock items added yet.</td></tr>}
             {stockItems.map((s) => {
               const used = usedFor(s.name);
               const remaining = s.quantity - used;
@@ -1113,6 +1127,13 @@ function StoresTab({ stockItems, materials, user, onChange }) {
                     <input
                       type="number" min="0" defaultValue={s.quantity}
                       onBlur={(e) => { const v = Number(e.target.value); if (v !== s.quantity) updateQuantity(s.id, v); }}
+                      style={{ width: 80, border: "1px solid var(--line)", borderRadius: 3, padding: "3px 6px", fontSize: 12 }}
+                    />
+                  </td>
+                  <td>
+                    ₹<input
+                      type="number" min="0" defaultValue={s.unit_price || 0}
+                      onBlur={(e) => { const v = Number(e.target.value); if (v !== (s.unit_price || 0)) updateUnitPrice(s.id, v); }}
                       style={{ width: 80, border: "1px solid var(--line)", borderRadius: 3, padding: "3px 6px", fontSize: 12 }}
                     />
                   </td>
@@ -1140,6 +1161,8 @@ function StoresTab({ stockItems, materials, user, onChange }) {
             <input type="number" min="0" className="input" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
             <label className="field-label">Unit</label>
             <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="e.g. bags, tons, pieces" />
+            <label className="field-label">Unit price (₹, optional — Finance can also set this later)</label>
+            <input type="number" min="0" className="input" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} />
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={addStock}>Add to stock</button>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { ClipboardList, FileText, Wallet, BarChart3, Plus, X, Trash2 } from "lucide-react";
+import { ClipboardList, FileText, Wallet, BarChart3, Plus, X, Trash2, Package } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import { PaymentsTab } from "@/components/AdminDashboard";
 
@@ -9,6 +9,7 @@ const TABS = [
   { id: "workorders", label: "Work Orders", icon: ClipboardList },
   { id: "invoices", label: "Invoices", icon: FileText },
   { id: "payments", label: "Payments", icon: Wallet },
+  { id: "storeaccounts", label: "Store Accounts", icon: Package },
   { id: "reports", label: "Reports & Profit", icon: BarChart3 },
 ];
 
@@ -19,6 +20,8 @@ export default function FinanceDashboard({ user, profile, onLogout }) {
   const [vendors, setVendors] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [stockItems, setStockItems] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
 
@@ -26,25 +29,33 @@ export default function FinanceDashboard({ user, profile, onLogout }) {
 
   async function loadAll() {
     if (!hasLoadedOnce.current) setLoading(true);
-    const [{ data: p }, { data: wo }, { data: vd }, { data: inv }, { data: pm }] = await Promise.all([
+    const [{ data: p }, { data: wo }, { data: vd }, { data: inv }, { data: pm }, { data: si }, { data: m }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("work_orders").select("*").order("created_at", { ascending: false }),
       supabase.from("vendors").select("*"),
       supabase.from("invoices").select("*").order("created_at", { ascending: false }),
       supabase.from("payments").select("*").order("payment_date", { ascending: false }),
+      supabase.from("stock_items").select("*").order("name", { ascending: true }),
+      supabase.from("materials").select("*"),
     ]);
     setProjects(p || []);
     setWorkOrders(wo || []);
     setVendors(vd || []);
     setInvoices(inv || []);
     setPayments(pm || []);
+    setStockItems(si || []);
+    setMaterials(m || []);
     hasLoadedOnce.current = true;
     setLoading(false);
   }
 
   const totalRevenue = payments.reduce((s, pm) => s + Number(pm.amount || 0), 0);
   const totalWorkOrderCost = workOrders.reduce((s, wo) => s + Number(wo.cost || 0), 0);
-  const profit = totalRevenue - totalWorkOrderCost;
+  const totalMaterialCost = materials.reduce((s, m) => {
+    const stock = stockItems.find((si) => si.name === m.name);
+    return s + (Number(m.used) || 0) * Number(stock?.unit_price || 0);
+  }, 0);
+  const profit = totalRevenue - totalWorkOrderCost - totalMaterialCost;
 
   return (
     <div className="app-shell">
@@ -72,6 +83,7 @@ export default function FinanceDashboard({ user, profile, onLogout }) {
           <div className="stat-grid">
             <div className="stat-card"><div className="stat-num">₹{totalRevenue.toLocaleString()}</div><div className="stat-label">Total Revenue</div></div>
             <div className="stat-card"><div className="stat-num">₹{totalWorkOrderCost.toLocaleString()}</div><div className="stat-label">Work Order Costs</div></div>
+            <div className="stat-card"><div className="stat-num">₹{totalMaterialCost.toLocaleString()}</div><div className="stat-label">Material Costs</div></div>
             <div className="stat-card"><div className="stat-num" style={{ color: profit >= 0 ? "#15803D" : "#B91C1C" }}>₹{profit.toLocaleString()}</div><div className="stat-label">Profit</div></div>
           </div>
 
@@ -82,7 +94,8 @@ export default function FinanceDashboard({ user, profile, onLogout }) {
               {tab === "workorders" && <FinanceWorkOrdersTab projects={projects} vendors={vendors} workOrders={workOrders} />}
               {tab === "invoices" && <InvoicesTab projects={projects} workOrders={workOrders} invoices={invoices} user={user} onChange={loadAll} />}
               {tab === "payments" && <PaymentsTab projects={projects} payments={payments} user={user} onChange={loadAll} />}
-              {tab === "reports" && <ReportsProfitTab projects={projects} payments={payments} workOrders={workOrders} invoices={invoices} />}
+              {tab === "storeaccounts" && <StoreAccountsTab stockItems={stockItems} materials={materials} user={user} onChange={loadAll} />}
+              {tab === "reports" && <ReportsProfitTab projects={projects} payments={payments} workOrders={workOrders} invoices={invoices} stockItems={stockItems} materials={materials} />}
             </>
           )}
         </div>
@@ -230,32 +243,114 @@ function InvoicesTab({ projects, workOrders, invoices, user, onChange }) {
   );
 }
 
-function ReportsProfitTab({ projects, payments, workOrders, invoices }) {
+function StoreAccountsTab({ stockItems, materials, user, onChange }) {
+  function usedFor(name) {
+    return materials.filter((m) => m.name === name).reduce((sum, m) => sum + (Number(m.used) || 0), 0);
+  }
+
+  async function updateUnitPrice(id, unitPrice) {
+    await supabase.from("stock_items").update({ unit_price: Math.max(0, unitPrice), updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  const totalStockValue = stockItems.reduce((sum, s) => sum + Number(s.quantity || 0) * Number(s.unit_price || 0), 0);
+  const totalUsedValue = stockItems.reduce((sum, s) => sum + usedFor(s.name) * Number(s.unit_price || 0), 0);
+  const totalRemainingValue = totalStockValue - totalUsedValue;
+
+  return (
+    <div>
+      <div className="dash-sub" style={{ marginBottom: 12 }}>
+        Admin and Supervisor only see stock in units — this shows what that stock is actually worth in money. Unit price can be set here or from Admin's Stores tab; either way it's the same number everywhere.
+      </div>
+
+      <div className="stat-grid" style={{ marginBottom: 16 }}>
+        <div className="stat-card"><div className="stat-num">₹{totalStockValue.toLocaleString()}</div><div className="stat-label">Total Stock Value</div></div>
+        <div className="stat-card"><div className="stat-num">₹{totalUsedValue.toLocaleString()}</div><div className="stat-label">Used Value</div></div>
+        <div className="stat-card"><div className="stat-num">₹{totalRemainingValue.toLocaleString()}</div><div className="stat-label">Remaining Value</div></div>
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead>
+            <tr><th>Material</th><th>Units in Stock</th><th>Unit Price</th><th>Total Stock Value</th><th>Used (units)</th><th>Used Value</th><th>Remaining (units)</th><th>Remaining Value</th></tr>
+          </thead>
+          <tbody>
+            {stockItems.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No stock items set up yet — add them from Admin's Stores tab, or set pricing here once they exist.</td></tr>}
+            {stockItems.map((s) => {
+              const used = usedFor(s.name);
+              const remaining = s.quantity - used;
+              const unitPrice = Number(s.unit_price || 0);
+              return (
+                <tr key={s.id}>
+                  <td><strong>{s.name}</strong></td>
+                  <td>{s.quantity} {s.unit || ""}</td>
+                  <td>
+                    ₹<input
+                      type="number" min="0" defaultValue={unitPrice}
+                      onBlur={(e) => { const v = Number(e.target.value); if (v !== unitPrice) updateUnitPrice(s.id, v); }}
+                      style={{ width: 80, border: "1px solid var(--line)", borderRadius: 3, padding: "3px 6px", fontSize: 12 }}
+                    />
+                  </td>
+                  <td>₹{(s.quantity * unitPrice).toLocaleString()}</td>
+                  <td>{used} {s.unit || ""}</td>
+                  <td>₹{(used * unitPrice).toLocaleString()}</td>
+                  <td>{remaining} {s.unit || ""}</td>
+                  <td style={{ color: remaining <= 0 ? "#B91C1C" : "#15803D", fontWeight: 700 }}>₹{(remaining * unitPrice).toLocaleString()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ReportsProfitTab({ projects, payments, workOrders, invoices, stockItems, materials }) {
+  function materialCostFor(list) {
+    return list.reduce((sum, m) => {
+      const stock = stockItems.find((s) => s.name === m.name);
+      return sum + (Number(m.used) || 0) * Number(stock?.unit_price || 0);
+    }, 0);
+  }
+
   const totalRevenue = payments.reduce((s, pm) => s + Number(pm.amount || 0), 0);
-  const totalCost = workOrders.reduce((s, wo) => s + Number(wo.cost || 0), 0);
+  const totalWorkOrderCost = workOrders.reduce((s, wo) => s + Number(wo.cost || 0), 0);
+  const totalMaterialCost = materialCostFor(materials);
+  const totalCost = totalWorkOrderCost + totalMaterialCost;
   const profit = totalRevenue - totalCost;
   const margin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0;
   const outstandingInvoices = invoices.filter((i) => i.status === "sent" || i.status === "overdue").reduce((s, i) => s + Number(i.amount || 0), 0);
 
   const perProject = projects.map((p) => {
     const revenue = payments.filter((pm) => pm.project_id === p.id).reduce((s, pm) => s + Number(pm.amount || 0), 0);
-    const cost = workOrders.filter((wo) => wo.project_id === p.id).reduce((s, wo) => s + Number(wo.cost || 0), 0);
+    const workOrderCost = workOrders.filter((wo) => wo.project_id === p.id).reduce((s, wo) => s + Number(wo.cost || 0), 0);
+    const materialCost = materialCostFor(materials.filter((m) => m.project_id === p.id));
+    const cost = workOrderCost + materialCost;
     return { name: p.name, revenue, cost, profit: revenue - cost };
   }).filter((p) => p.revenue > 0 || p.cost > 0);
+
+  const uncostedMaterials = [...new Set(materials.map((m) => m.name))].filter((name) => {
+    const stock = stockItems.find((s) => s.name === name);
+    return !stock || Number(stock.unit_price || 0) === 0;
+  });
 
   return (
     <div>
       <div className="stat-grid" style={{ marginBottom: 20 }}>
         <div className="stat-card"><div className="stat-num">₹{totalRevenue.toLocaleString()}</div><div className="stat-label">Total Revenue</div></div>
-        <div className="stat-card"><div className="stat-num">₹{totalCost.toLocaleString()}</div><div className="stat-label">Work Order Costs</div></div>
+        <div className="stat-card"><div className="stat-num">₹{totalWorkOrderCost.toLocaleString()}</div><div className="stat-label">Work Order Costs</div></div>
+        <div className="stat-card"><div className="stat-num">₹{totalMaterialCost.toLocaleString()}</div><div className="stat-label">Material Costs</div></div>
         <div className="stat-card"><div className="stat-num" style={{ color: profit >= 0 ? "#15803D" : "#B91C1C" }}>₹{profit.toLocaleString()}</div><div className="stat-label">Profit</div></div>
         <div className="stat-card"><div className="stat-num">{margin}%</div><div className="stat-label">Profit Margin</div></div>
         <div className="stat-card"><div className="stat-num">₹{outstandingInvoices.toLocaleString()}</div><div className="stat-label">Outstanding Invoices</div></div>
       </div>
 
-      <div className="muted" style={{ fontSize: 11, marginBottom: 16 }}>
-        "Cost" here reflects Work Order costs specifically — materials don't have a price tracked yet, so raw material cost isn't included in Profit.
-      </div>
+      {uncostedMaterials.length > 0 && (
+        <div className="dash-sub" style={{ marginBottom: 16 }}>
+          {uncostedMaterials.length} material{uncostedMaterials.length === 1 ? "" : "s"} used on projects {uncostedMaterials.length === 1 ? "has" : "have"} no unit price set yet ({uncostedMaterials.join(", ")}) — its cost isn't counted above until you set a price in Store Accounts.
+        </div>
+      )}
 
       <h3 className="h2" style={{ fontSize: 14, marginBottom: 8 }}>Revenue vs. cost by project</h3>
       <table className="data-table">
