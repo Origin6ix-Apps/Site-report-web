@@ -918,6 +918,7 @@ const PIPELINE_STAGES = [
 
 export function ProspectsTab({ prospects, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ business_name: "", contact_person: "", phone: "", email: "", source: "", notes: "" });
   const [error, setError] = useState("");
 
@@ -941,6 +942,12 @@ export function ProspectsTab({ prospects, user, onChange }) {
     onChange();
   }
 
+  async function deleteProspect(id, name) {
+    if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+    await supabase.from("prospects").delete().eq("id", id);
+    onChange();
+  }
+
   return (
     <div>
       <div className="row-between" style={{ marginBottom: 12 }}>
@@ -961,9 +968,11 @@ export function ProspectsTab({ prospects, user, onChange }) {
                 <td>{p.phone || "—"}</td>
                 <td>{p.source || "—"}</td>
                 <td>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button className="btn btn-primary btn-sm" style={{ background: "#15803D", fontSize: 11, padding: "4px 10px" }} onClick={() => decide(p.id, "lead")}>Qualified</button>
                     <button className="btn btn-primary btn-sm" style={{ background: "#B91C1C", fontSize: 11, padding: "4px 10px" }} onClick={() => decide(p.id, "disqualified")}>Disqualified</button>
+                    <button className="icon-btn-sm" onClick={() => setEditingId(p.id)}>Edit</button>
+                    <button className="icon-btn-sm" onClick={() => deleteProspect(p.id, p.business_name)}><Trash2 size={13} /></button>
                   </div>
                 </td>
               </tr>
@@ -975,9 +984,9 @@ export function ProspectsTab({ prospects, user, onChange }) {
       <h3 className="h2" style={{ fontSize: 13, marginBottom: 8 }}>Already decided ({decided.length})</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
-          <thead><tr><th>Business</th><th>Contact</th><th>Status</th></tr></thead>
+          <thead><tr><th>Business</th><th>Contact</th><th>Status</th><th></th></tr></thead>
           <tbody>
-            {decided.length === 0 && <tr><td colSpan={3} className="muted" style={{ padding: 20 }}>Nothing decided yet.</td></tr>}
+            {decided.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 20 }}>Nothing decided yet.</td></tr>}
             {decided.map((p) => (
               <tr key={p.id}>
                 <td>{p.business_name}</td>
@@ -988,6 +997,12 @@ export function ProspectsTab({ prospects, user, onChange }) {
                   ) : (
                     <span className="status-pill active">Qualified — {PIPELINE_STAGES.find((s) => s.id === p.stage)?.label || p.stage}</span>
                   )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="icon-btn-sm" onClick={() => setEditingId(p.id)}>Edit</button>
+                    <button className="icon-btn-sm" onClick={() => deleteProspect(p.id, p.business_name)}><Trash2 size={13} /></button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1019,6 +1034,63 @@ export function ProspectsTab({ prospects, user, onChange }) {
           </div>
         </div>
       )}
+
+      {editingId && (
+        <EditProspectModal
+          prospect={prospects.find((p) => p.id === editingId)}
+          onClose={() => setEditingId(null)}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditProspectModal({ prospect, onClose, onChange }) {
+  const [form, setForm] = useState({
+    business_name: prospect.business_name || "",
+    contact_person: prospect.contact_person || "",
+    phone: prospect.phone || "",
+    email: prospect.email || "",
+    source: prospect.source || "",
+    notes: prospect.notes || "",
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!form.business_name.trim()) return;
+    setBusy(true);
+    setError("");
+    const { error: updateError } = await supabase.from("prospects").update(form).eq("id", prospect.id);
+    setBusy(false);
+    if (updateError) { setError(updateError.message); return; }
+    onChange();
+    onClose();
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Edit prospect</h2>
+          <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
+        </div>
+        <label className="field-label">Business name</label>
+        <input className="input" value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} autoFocus />
+        <label className="field-label">Contact person</label>
+        <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: sanitizeName(e.target.value) })} />
+        <label className="field-label">Phone</label>
+        <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+        <label className="field-label">Email</label>
+        <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <label className="field-label">Source</label>
+        <input className="input" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
+        <label className="field-label">Notes</label>
+        <textarea className="textarea" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+        <button className="btn btn-primary btn-block" disabled={busy || !form.business_name.trim()} onClick={save}>{busy ? "Saving…" : "Save changes"}</button>
+      </div>
     </div>
   );
 }
@@ -1026,9 +1098,11 @@ export function ProspectsTab({ prospects, user, onChange }) {
 export function ClientManagementTab({ prospects, supervisors, user, onChange }) {
   const [showConvertId, setShowConvertId] = useState(null);
   const [showQuoteId, setShowQuoteId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const qualified = prospects.filter((p) => p.stage !== "pending_review" && p.stage !== "disqualified");
 
   const openValue = qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
+  const wonValue = qualified.filter((p) => p.stage === "won").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
   const wonCount = qualified.filter((p) => p.stage === "won").length;
   const lostCount = qualified.filter((p) => p.stage === "lost").length;
   const closedCount = wonCount + lostCount;
@@ -1044,17 +1118,23 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
     onChange();
   }
 
+  async function deleteClient(id, name) {
+    if (!confirm(`Delete "${name}" from the pipeline? This can't be undone.`)) return;
+    await supabase.from("prospects").delete().eq("id", id);
+    onChange();
+  }
+
   return (
     <div>
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="stat-card"><div className="stat-num">₹{openValue.toLocaleString()}</div><div className="stat-label">Open Pipeline Value</div></div>
+        <div className="stat-card"><div className="stat-num">₹{wonValue.toLocaleString()}</div><div className="stat-label">Won Value</div></div>
         <div className="stat-card"><div className="stat-num">{qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").length}</div><div className="stat-label">Active Leads</div></div>
         <div className="stat-card"><div className="stat-num">{winRate}%</div><div className="stat-label">Win Rate</div></div>
         <div className="stat-card"><div className="stat-num">{wonCount}</div><div className="stat-label">Won</div></div>
       </div>
-
       <div className="dash-sub" style={{ marginBottom: 12 }}>
-        Set Site Visit to Yes, then add the quote — Qualified moves a lead to Won and its amount updates the pipeline value; Disqualified moves it to Lost with a reason kept on file.
+        Set Site Visit to Yes, then add the quote — Qualified moves a lead to Won (its amount moves from "Open Pipeline Value" into "Won Value"); Disqualified moves it to Lost with a reason kept on file.
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -1102,10 +1182,14 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
                   ) : "NA"}
                 </td>
                 <td>
-                  {p.stage === "won" && !p.converted_project_id && (
-                    <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowConvertId(p.id)}>Convert to project</button>
-                  )}
-                  {p.converted_project_id && <span className="muted" style={{ fontSize: 11 }}>✓ Converted</span>}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    {p.stage === "won" && !p.converted_project_id && (
+                      <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowConvertId(p.id)}>Convert to project</button>
+                    )}
+                    {p.converted_project_id && <span className="muted" style={{ fontSize: 11 }}>✓ Converted</span>}
+                    <button className="icon-btn-sm" onClick={() => setEditingId(p.id)}>Edit</button>
+                    <button className="icon-btn-sm" onClick={() => deleteClient(p.id, p.business_name)}><Trash2 size={13} /></button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1130,6 +1214,14 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
           onChange={onChange}
         />
       )}
+
+      {editingId && (
+        <EditProspectModal
+          prospect={qualified.find((p) => p.id === editingId)}
+          onClose={() => setEditingId(null)}
+          onChange={onChange}
+        />
+      )}
     </div>
   );
 }
@@ -1137,28 +1229,62 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
 function QuoteModal({ prospect, onClose, onChange }) {
   const [amount, setAmount] = useState(prospect.quote_amount || "");
   const [file, setFile] = useState(null);
+  const [documentUrl, setDocumentUrl] = useState(prospect.quote_document_url || "");
+  const [extracting, setExtracting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
+  function fileToBase64(f) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(f);
+    });
+  }
+
+  async function handleFile(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setError("");
+    setExtracting(true);
+    try {
+      const base64 = await fileToBase64(f);
+      const res = await fetch("/api/extract-quote-amount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64, mediaType: f.type }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Couldn't read that document.");
+      setAmount(json.amount);
+    } catch (err) {
+      setError(err.message + " You can enter the amount below manually instead.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
   async function decide(decision) {
     if (!amount || Number(amount) <= 0) {
-      setError("Enter the quote amount first.");
+      setError("No amount yet — upload a quote document, or enter the amount manually.");
       return;
     }
     setUploading(true);
     setError("");
     try {
-      let documentUrl = prospect.quote_document_url || "";
+      let finalDocumentUrl = documentUrl;
       if (file) {
         const path = `quote-docs/${prospect.id}/${Date.now()}-${file.name}`;
         const { error: upErr } = await supabase.storage.from("site-photos").upload(path, file, { upsert: true });
         if (upErr) throw upErr;
         const { data: pub } = supabase.storage.from("site-photos").getPublicUrl(path);
-        documentUrl = pub.publicUrl;
+        finalDocumentUrl = pub.publicUrl;
       }
       const { error: updateError } = await supabase.from("prospects").update({
         quote_amount: Number(amount),
-        quote_document_url: documentUrl,
+        quote_document_url: finalDocumentUrl,
         quote_decision: decision,
         updated_at: new Date().toISOString(),
       }).eq("id", prospect.id);
@@ -1179,19 +1305,25 @@ function QuoteModal({ prospect, onClose, onChange }) {
           <h2 className="h2" style={{ color: "var(--ink)" }}>Add quote — {prospect.business_name}</h2>
           <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
         </div>
-        <label className="field-label">Quote amount</label>
-        <input type="number" min="0" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
         <label className="field-label">Upload quote document</label>
-        <input type="file" accept=".pdf,.doc,.docx,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        {prospect.quote_document_url && !file && (
-          <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>A quote document is already attached — choose a new file only if you want to replace it.</div>
+        <input type="file" accept=".pdf,image/*" onChange={handleFile} disabled={extracting} />
+        <div className="field-hint">PDF or image only — the amount is read automatically from the document, no need to type it separately.</div>
+        {extracting && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>Reading the quote…</div>}
+        {!extracting && amount && (
+          <div style={{ marginTop: 10 }}>
+            <div className="field-label">Quote amount {file ? "(read from document — edit if it's wrong)" : ""}</div>
+            <input type="number" min="0" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+        )}
+        {documentUrl && !file && (
+          <div className="muted" style={{ marginTop: 6, fontSize: 11 }}><a href={documentUrl} target="_blank" rel="noreferrer">View current quote document</a> — upload a new one only to replace it.</div>
         )}
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button className="btn btn-primary btn-block" style={{ background: "#15803D" }} disabled={uploading} onClick={() => decide("qualified")}>
+          <button className="btn btn-primary btn-block" style={{ background: "#15803D" }} disabled={uploading || extracting} onClick={() => decide("qualified")}>
             {uploading ? "Saving…" : "Qualified"}
           </button>
-          <button className="btn btn-primary btn-block" style={{ background: "#B91C1C" }} disabled={uploading} onClick={() => decide("disqualified")}>
+          <button className="btn btn-primary btn-block" style={{ background: "#B91C1C" }} disabled={uploading || extracting} onClick={() => decide("disqualified")}>
             {uploading ? "Saving…" : "Disqualified"}
           </button>
         </div>
