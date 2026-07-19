@@ -6,17 +6,6 @@ import { ShieldCheck, Building2, HardHat, ChevronRight, Check, Briefcase, Trendi
 
 const PORTALS = [
   {
-    id: "manager", label: "Manager", icon: ShieldCheck,
-    tagline: "See everything. Control everything.",
-    features: [
-      "View every project, Admin, and Supervisor from one screen",
-      "Assign or change any role instantly — no approval delays",
-      "Track revenue, payments, and outstanding balances in real time",
-      "See company-wide progress, attendance, and material stock at a glance",
-      "Get a management-ready view of projects",
-    ],
-  },
-  {
     id: "admin", label: "Admin", icon: Building2,
     tagline: "Run your projects like clockwork.",
     features: [
@@ -36,6 +25,17 @@ const PORTALS = [
       "Order materials and see stock levels update in real time",
       "Check off scope-of-work items as work actually gets done",
       "Everything you report reaches your Admin and Manager instantly",
+    ],
+  },
+  {
+    id: "manager", label: "Manager", icon: ShieldCheck,
+    tagline: "See everything. Control everything.",
+    features: [
+      "View every project, Admin, and Supervisor from one screen",
+      "Assign or change any role instantly — no approval delays",
+      "Track revenue, payments, and outstanding balances in real time",
+      "See company-wide progress, attendance, and material stock at a glance",
+      "Get a management-ready view of projects",
     ],
   },
 ];
@@ -109,6 +109,20 @@ function PortalPicker({ onChoose, onLeadsPortal }) {
             <div className="brand-sub">Select where you'd like to sign in</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button
+              onClick={onLeadsPortal}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--blue-light)", border: "1px solid var(--blue-tint)", borderRadius: 10,
+                padding: "16px 18px", width: "100%", cursor: "pointer", fontFamily: "Montserrat",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <TrendingUp size={20} color="var(--blue)" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>Leads Portal</span>
+              </span>
+              <ChevronRight size={18} color="var(--blue)" />
+            </button>
             {PORTALS.map((p) => {
               const Icon = p.icon;
               return (
@@ -129,20 +143,6 @@ function PortalPicker({ onChoose, onLeadsPortal }) {
                 </button>
               );
             })}
-            <button
-              onClick={onLeadsPortal}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                background: "var(--blue-light)", border: "1px solid var(--blue-tint)", borderRadius: 10,
-                padding: "16px 18px", width: "100%", cursor: "pointer", fontFamily: "Montserrat",
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <TrendingUp size={20} color="var(--blue)" />
-                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>Leads Portal</span>
-              </span>
-              <ChevronRight size={18} color="var(--blue)" />
-            </button>
           </div>
         </div>
       </div>

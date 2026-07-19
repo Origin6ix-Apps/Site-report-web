@@ -1025,6 +1025,7 @@ export function ProspectsTab({ prospects, user, onChange }) {
 
 export function ClientManagementTab({ prospects, supervisors, user, onChange }) {
   const [showConvertId, setShowConvertId] = useState(null);
+  const [showQuoteId, setShowQuoteId] = useState(null);
   const qualified = prospects.filter((p) => p.stage !== "pending_review" && p.stage !== "disqualified");
 
   const openValue = qualified.filter((p) => p.stage !== "won" && p.stage !== "lost").reduce((s, p) => s + Number(p.estimated_value || 0), 0);
@@ -1035,11 +1036,6 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
 
   async function setSiteVisit(id, value) {
     await supabase.from("prospects").update({ site_visit: value, updated_at: new Date().toISOString() }).eq("id", id);
-    onChange();
-  }
-
-  async function setQuoteDecision(id, value) {
-    await supabase.from("prospects").update({ quote_decision: value, updated_at: new Date().toISOString() }).eq("id", id);
     onChange();
   }
 
@@ -1058,7 +1054,7 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
       </div>
 
       <div className="dash-sub" style={{ marginBottom: 12 }}>
-        Set Site Visit to Yes, then decide the Quote — Qualified moves a lead to Won, Disqualified moves it to Lost (with a reason kept on file).
+        Set Site Visit to Yes, then add the quote — Qualified moves a lead to Won and its amount updates the pipeline value; Disqualified moves it to Lost with a reason kept on file.
       </div>
 
       <div style={{ overflowX: "auto" }}>
@@ -1080,15 +1076,16 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
                   </select>
                 </td>
                 <td>
-                  <select
-                    className="select-input" value={p.quote_decision || "pending"}
-                    disabled={p.site_visit !== "yes"}
-                    onChange={(e) => setQuoteDecision(p.id, e.target.value)}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="disqualified">Disqualified</option>
-                  </select>
+                  {p.site_visit !== "yes" ? (
+                    <span className="muted" style={{ fontSize: 11 }}>Awaiting site visit</span>
+                  ) : p.quote_decision === "pending" || !p.quote_decision ? (
+                    <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowQuoteId(p.id)}>Add quote</button>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700 }}>₹{Number(p.quote_amount || 0).toLocaleString()}</div>
+                      {p.quote_document_url && <a href={p.quote_document_url} target="_blank" rel="noreferrer" style={{ fontSize: 10.5 }}>View quote</a>}
+                    </div>
+                  )}
                 </td>
                 <td>
                   {p.stage === "won" && <span className="status-pill active">Won</span>}
@@ -1102,7 +1099,7 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
                       onBlur={(e) => { if (e.target.value !== p.lost_reason) saveLostReason(p.id, e.target.value); }}
                       style={{ minWidth: 160 }}
                     />
-                  ) : "—"}
+                  ) : "NA"}
                 </td>
                 <td>
                   {p.stage === "won" && !p.converted_project_id && (
@@ -1125,6 +1122,80 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
           onChange={onChange}
         />
       )}
+
+      {showQuoteId && (
+        <QuoteModal
+          prospect={qualified.find((p) => p.id === showQuoteId)}
+          onClose={() => setShowQuoteId(null)}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function QuoteModal({ prospect, onClose, onChange }) {
+  const [amount, setAmount] = useState(prospect.quote_amount || "");
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function decide(decision) {
+    if (!amount || Number(amount) <= 0) {
+      setError("Enter the quote amount first.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      let documentUrl = prospect.quote_document_url || "";
+      if (file) {
+        const path = `quote-docs/${prospect.id}/${Date.now()}-${file.name}`;
+        const { error: upErr } = await supabase.storage.from("site-photos").upload(path, file, { upsert: true });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from("site-photos").getPublicUrl(path);
+        documentUrl = pub.publicUrl;
+      }
+      const { error: updateError } = await supabase.from("prospects").update({
+        quote_amount: Number(amount),
+        quote_document_url: documentUrl,
+        quote_decision: decision,
+        updated_at: new Date().toISOString(),
+      }).eq("id", prospect.id);
+      if (updateError) throw updateError;
+      onChange();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Add quote — {prospect.business_name}</h2>
+          <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
+        </div>
+        <label className="field-label">Quote amount</label>
+        <input type="number" min="0" className="input" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+        <label className="field-label">Upload quote document</label>
+        <input type="file" accept=".pdf,.doc,.docx,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        {prospect.quote_document_url && !file && (
+          <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>A quote document is already attached — choose a new file only if you want to replace it.</div>
+        )}
+        {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button className="btn btn-primary btn-block" style={{ background: "#15803D" }} disabled={uploading} onClick={() => decide("qualified")}>
+            {uploading ? "Saving…" : "Qualified"}
+          </button>
+          <button className="btn btn-primary btn-block" style={{ background: "#B91C1C" }} disabled={uploading} onClick={() => decide("disqualified")}>
+            {uploading ? "Saving…" : "Disqualified"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
