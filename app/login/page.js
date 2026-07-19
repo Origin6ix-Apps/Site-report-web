@@ -75,19 +75,21 @@ function sanitizePhone(value) {
 }
 
 export default function LoginPage() {
-  const [screen, setScreen] = useState("main"); // "main" | "leads" | a portal id
+  const [screen, setScreen] = useState("main"); // "main" | "management" | "leads" | a portal id
   const activePortal = [...PORTALS, ...LEADS_PORTALS].find((p) => p.id === screen);
+  const backTarget = LEADS_PORTALS.some((p) => p.id === screen) ? "leads" : PORTALS.some((p) => p.id === screen) ? "management" : "main";
 
   return (
     <div className="split-screen">
-      {screen === "main" && <PortalPicker onChoose={setScreen} onLeadsPortal={() => setScreen("leads")} />}
+      {screen === "main" && <TopPicker onManagementPortal={() => setScreen("management")} onLeadsPortal={() => setScreen("leads")} />}
+      {screen === "management" && <ManagementPortalPicker onChoose={setScreen} onBack={() => setScreen("main")} />}
       {screen === "leads" && <LeadsPortalPicker onChoose={setScreen} onBack={() => setScreen("main")} />}
-      {activePortal && <PortalLogin portal={screen} onBack={() => setScreen(LEADS_PORTALS.some((p) => p.id === screen) ? "leads" : "main")} />}
+      {activePortal && <PortalLogin portal={screen} onBack={() => setScreen(backTarget)} />}
     </div>
   );
 }
 
-function PortalPicker({ onChoose, onLeadsPortal }) {
+function TopPicker({ onManagementPortal, onLeadsPortal }) {
   return (
     <>
       <div className="split-panel blue">
@@ -106,7 +108,7 @@ function PortalPicker({ onChoose, onLeadsPortal }) {
         <div style={{ width: 340, maxWidth: "100%" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div className="brand-name" style={{ fontSize: 20 }}>Sign in to your workspace</div>
-            <div className="brand-sub">Select where you'd like to sign in</div>
+            <div className="brand-sub">Select your portal</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <button
@@ -123,6 +125,43 @@ function PortalPicker({ onChoose, onLeadsPortal }) {
               </span>
               <ChevronRight size={18} color="var(--blue)" />
             </button>
+            <button
+              onClick={onManagementPortal}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--blue-light)", border: "1px solid var(--blue-tint)", borderRadius: 10,
+                padding: "16px 18px", width: "100%", cursor: "pointer", fontFamily: "Montserrat",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <ShieldCheck size={20} color="var(--blue)" />
+                <span style={{ fontWeight: 700, fontSize: 15, color: "var(--ink)" }}>Management Portal</span>
+              </span>
+              <ChevronRight size={18} color="var(--blue)" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ManagementPortalPicker({ onChoose, onBack }) {
+  return (
+    <>
+      <div className="split-panel blue">
+        <img src="/logo.png" alt="MES Portal" style={{ width: 140, height: "auto", marginBottom: 24 }} />
+        <div className="split-tagline">Where the work actually gets run.</div>
+        <div className="split-subtagline">The Management Portal covers everything after a deal is won — projects, teams, attendance, materials, and payments.</div>
+      </div>
+      <div className="split-panel">
+        <div style={{ width: 340, maxWidth: "100%" }}>
+          <button className="link-btn" style={{ marginTop: 0, marginBottom: 16 }} onClick={onBack}>← Choose a different portal</button>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div className="brand-name" style={{ fontSize: 20 }}>Management Portal</div>
+            <div className="brand-sub">Select your role</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {PORTALS.map((p) => {
               const Icon = p.icon;
               return (

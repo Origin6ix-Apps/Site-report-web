@@ -919,7 +919,7 @@ const PIPELINE_STAGES = [
 export function ProspectsTab({ prospects, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ business_name: "", contact_person: "", phone: "", email: "", source: "", notes: "" });
+  const [form, setForm] = useState({ business_name: "", contact_person: "", phone: "", email: "", source: "", requirement: "", notes: "" });
   const [error, setError] = useState("");
 
   const pending = prospects.filter((p) => p.stage === "pending_review");
@@ -932,7 +932,7 @@ export function ProspectsTab({ prospects, user, onChange }) {
       ...form, contact_person: sanitizeName(form.contact_person), phone: sanitizePhone(form.phone), created_by: user.id,
     });
     if (insertError) { setError(insertError.message); return; }
-    setForm({ business_name: "", contact_person: "", phone: "", email: "", source: "", notes: "" });
+    setForm({ business_name: "", contact_person: "", phone: "", email: "", source: "", requirement: "", notes: "" });
     setShowNew(false);
     onChange();
   }
@@ -1027,6 +1027,8 @@ export function ProspectsTab({ prospects, user, onChange }) {
             <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             <label className="field-label">Source</label>
             <input className="input" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="e.g. Referral, Website, Cold call" />
+            <label className="field-label">Requirement</label>
+            <textarea className="textarea" rows={2} value={form.requirement} onChange={(e) => setForm({ ...form, requirement: e.target.value })} placeholder="What does this prospect actually need?" />
             <label className="field-label">Notes</label>
             <textarea className="textarea" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
@@ -1053,6 +1055,7 @@ function EditProspectModal({ prospect, onClose, onChange }) {
     phone: prospect.phone || "",
     email: prospect.email || "",
     source: prospect.source || "",
+    requirement: prospect.requirement || "",
     notes: prospect.notes || "",
   });
   const [error, setError] = useState("");
@@ -1086,6 +1089,8 @@ function EditProspectModal({ prospect, onClose, onChange }) {
         <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <label className="field-label">Source</label>
         <input className="input" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} />
+        <label className="field-label">Requirement</label>
+        <textarea className="textarea" rows={2} value={form.requirement} onChange={(e) => setForm({ ...form, requirement: e.target.value })} />
         <label className="field-label">Notes</label>
         <textarea className="textarea" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
@@ -1140,13 +1145,14 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
           <thead>
-            <tr><th>Business</th><th>Contact</th><th>Site Visit</th><th>Quote</th><th>Status</th><th>Reason (if Lost)</th><th></th></tr>
+            <tr><th>Business</th><th>Requirement</th><th>Contact</th><th>Site Visit</th><th>Quote</th><th>Status</th><th>Reason (if Lost)</th><th></th></tr>
           </thead>
           <tbody>
-            {qualified.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No qualified leads yet — qualify a prospect first.</td></tr>}
+            {qualified.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No qualified leads yet — qualify a prospect first.</td></tr>}
             {qualified.map((p) => (
               <tr key={p.id}>
                 <td><strong>{p.business_name}</strong></td>
+                <td style={{ maxWidth: 180, whiteSpace: "normal" }}>{p.requirement || "—"}</td>
                 <td>{p.contact_person || "—"}</td>
                 <td>
                   <select className="select-input" value={p.site_visit || "pending"} onChange={(e) => setSiteVisit(p.id, e.target.value)}>
