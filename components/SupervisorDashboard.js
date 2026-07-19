@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, X, FileText, CalendarCheck, Package, Building2, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Plus, X, FileText, CalendarCheck, Package, Building2, CheckCircle2, XCircle, Trash2, ClipboardList } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 
 // Only letters and spaces — no numbers, no special characters.
@@ -20,6 +20,7 @@ const TABS = [
   { id: "employees", label: "Employees", icon: Package },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "materials", label: "Materials", icon: Package },
+  { id: "workorders", label: "Work Orders", icon: ClipboardList },
   { id: "dailylog", label: "Daily Log", icon: FileText },
 ];
 
@@ -32,6 +33,8 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
   const [dailyLogs, setDailyLogs] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [scopeItems, setScopeItems] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -40,7 +43,7 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
     setLoading(true);
     const { data: p } = await supabase.from("projects").select("*").eq("assigned_supervisor_id", user.id).order("created_at", { ascending: false });
     const projectIds = (p || []).map((x) => x.id);
-    const [{ data: e }, { data: a }, { data: m }, { data: dl }, { data: si }, { data: sc }] = projectIds.length
+    const [{ data: e }, { data: a }, { data: m }, { data: dl }, { data: si }, { data: sc }, { data: wo }, { data: vd }] = projectIds.length
       ? await Promise.all([
           supabase.from("employees").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("attendance").select("*").in("project_id", projectIds),
@@ -48,8 +51,10 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
           supabase.from("daily_logs").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
           supabase.from("stock_items").select("*").order("name", { ascending: true }),
           supabase.from("scope_items").select("*").in("project_id", projectIds).order("created_at", { ascending: true }),
+          supabase.from("work_orders").select("*").in("project_id", projectIds).order("created_at", { ascending: false }),
+          supabase.from("vendors").select("*"),
         ])
-      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, await supabase.from("stock_items").select("*").order("name", { ascending: true }), { data: [] }];
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, await supabase.from("stock_items").select("*").order("name", { ascending: true }), { data: [] }, { data: [] }, { data: [] }];
     setProjects(p || []);
     setEmployees(e || []);
     setAttendance(a || []);
@@ -57,6 +62,8 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
     setDailyLogs(dl || []);
     setStockItems(si || []);
     setScopeItems(sc || []);
+    setWorkOrders(wo || []);
+    setVendors(vd || []);
     setLoading(false);
   }
 
@@ -94,10 +101,42 @@ export default function SupervisorDashboard({ user, profile, onLogout }) {
               {tab === "employees" && <MyEmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
               {tab === "attendance" && <MarkAttendanceTab employees={employees} attendance={attendance} user={user} onChange={loadAll} />}
               {tab === "materials" && <MaterialsTab projects={projects} materials={materials} stockItems={stockItems} user={user} onChange={loadAll} />}
+              {tab === "workorders" && <SupervisorWorkOrdersTab projects={projects} workOrders={workOrders} vendors={vendors} />}
               {tab === "dailylog" && <DailyLogTab projects={projects} dailyLogs={dailyLogs} user={user} onChange={loadAll} />}
             </>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SupervisorWorkOrdersTab({ projects, workOrders, vendors }) {
+  const STATUS_LABEL = { open: "Open", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" };
+
+  return (
+    <div>
+      <div className="dash-sub" style={{ marginBottom: 12 }}>Work ordered from outside vendors (or internally) against your projects — set up by your Admin.</div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead><tr><th>Project</th><th>Title</th><th>Vendor</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody>
+            {workOrders.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>No work orders on your projects yet.</td></tr>}
+            {workOrders.map((wo) => {
+              const proj = projects.find((p) => p.id === wo.project_id);
+              const vendor = vendors.find((v) => v.id === wo.vendor_id);
+              return (
+                <tr key={wo.id}>
+                  <td>{proj?.name || "—"}</td>
+                  <td><strong>{wo.title}</strong></td>
+                  <td>{vendor?.name || <span className="muted">Internal</span>}</td>
+                  <td><span className={`status-pill ${wo.status === "completed" ? "active" : wo.status === "cancelled" ? "absent" : "pending"}`}>{STATUS_LABEL[wo.status] || wo.status}</span></td>
+                  <td>{wo.due_date || "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -157,13 +196,24 @@ function MyProjectsTab({ projects, employees, scopeItems, onChange }) {
             </div>
             {items.length > 0 && (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Scope checklist</div>
-                {items.map((item) => (
-                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "3px 0" }}>
-                    <input type="checkbox" checked={item.completed} onChange={() => toggleScopeItem(item.id, item.completed)} />
-                    <span style={{ textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>{item.description}</span>
-                  </label>
-                ))}
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Tasks</div>
+                {items.map((item) => {
+                  const assignee = team.find((e) => e.id === item.assigned_to_employee_id);
+                  const priorityColor = { low: "#64748B", medium: "#A16207", high: "#B91C1C" }[item.priority] || "#A16207";
+                  return (
+                    <div key={item.id} style={{ padding: "4px 0" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                        <input type="checkbox" checked={item.completed} onChange={() => toggleScopeItem(item.id, item.completed)} />
+                        <span style={{ textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>{item.description}</span>
+                      </label>
+                      <div style={{ display: "flex", gap: 8, paddingLeft: 22, fontSize: 10.5, color: "var(--muted)" }}>
+                        {assignee && <span>Assigned: {assignee.name}</span>}
+                        {item.due_date && <span>Due {item.due_date}</span>}
+                        <span style={{ color: priorityColor, fontWeight: 700, textTransform: "uppercase" }}>{item.priority || "medium"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div style={{ marginTop: 12 }}>
@@ -528,6 +578,19 @@ function DailyLogTab({ projects, dailyLogs, user, onChange }) {
       await supabase.from("daily_logs").insert({ project_id: projectId, log_date: date, text: text.trim(), photo_urls: photoUrls, logged_by: user.id });
       setText(""); setPhotos([]);
       onChange();
+
+      // Notify Managers by email — best-effort, never blocks the actual submission.
+      try {
+        const projectName = projects.find((p) => p.id === projectId)?.name || "a project";
+        const supervisorName = user.user_metadata?.full_name || user.email;
+        await fetch("/api/notify-daily-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectName, supervisorName, logDate: date, logText: text.trim() }),
+        });
+      } catch (notifyErr) {
+        // Silent — a failed notification should never look like a failed submission.
+      }
     } catch (e) {
       alert("Failed to submit daily log: " + e.message);
     } finally {

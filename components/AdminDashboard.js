@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet, TrendingUp } from "lucide-react";
+import { Plus, X, Trash2, Users as UsersIcon, Building2, CalendarCheck, ShieldCheck, Package, FileText, Wallet, TrendingUp, Truck, ClipboardList } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 
 // Only letters and spaces — no numbers, no special characters.
@@ -20,6 +20,8 @@ const TABS = [
   { id: "employees", label: "Employees", icon: UsersIcon },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "stores", label: "Stores", icon: Package },
+  { id: "vendors", label: "Vendors", icon: Truck },
+  { id: "workorders", label: "Work Orders", icon: ClipboardList },
   { id: "payments", label: "Payments", icon: Wallet },
   { id: "dailyreports", label: "Daily Reports", icon: FileText },
   { id: "users", label: "Users", icon: ShieldCheck },
@@ -38,6 +40,8 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   const [scopeItems, setScopeItems] = useState([]);
   const [payments, setPayments] = useState([]);
   const [prospects, setProspects] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedOnce = useRef(false);
 
@@ -45,7 +49,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
 
   async function loadAll() {
     if (!hasLoadedOnce.current) setLoading(true);
-    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }, { data: pm }, { data: pd }] = await Promise.all([
+    const [{ data: p }, { data: e }, { data: a }, { data: pr }, { data: si }, { data: m }, { data: dl }, { data: sc }, { data: pm }, { data: pd }, { data: vd }, { data: wo }] = await Promise.all([
       supabase.from("projects").select("*").order("created_at", { ascending: false }),
       supabase.from("employees").select("*, projects(name)").order("created_at", { ascending: false }),
       supabase.from("attendance").select("*, employees(name), projects(name)").order("attendance_date", { ascending: false }).limit(100),
@@ -56,6 +60,8 @@ export default function AdminDashboard({ user, profile, onLogout }) {
       supabase.from("scope_items").select("*").order("created_at", { ascending: true }),
       supabase.from("payments").select("*").order("payment_date", { ascending: false }),
       supabase.from("prospects").select("*").order("created_at", { ascending: false }),
+      supabase.from("vendors").select("*").order("name", { ascending: true }),
+      supabase.from("work_orders").select("*").order("created_at", { ascending: false }),
     ]);
     setProjects(p || []);
     setEmployees(e || []);
@@ -68,6 +74,8 @@ export default function AdminDashboard({ user, profile, onLogout }) {
     setScopeItems(sc || []);
     setPayments(pm || []);
     setProspects(pd || []);
+    setVendors(vd || []);
+    setWorkOrders(wo || []);
     hasLoadedOnce.current = true;
     setLoading(false);
   }
@@ -113,10 +121,12 @@ export default function AdminDashboard({ user, profile, onLogout }) {
             <p className="dash-sub">Loading…</p>
           ) : (
             <>
-              {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} scopeItems={scopeItems} user={user} onChange={loadAll} />}
+              {tab === "projects" && <ProjectsTab projects={projects} supervisors={supervisors} scopeItems={scopeItems} employees={employees} user={user} onChange={loadAll} />}
               {tab === "employees" && <EmployeesTab employees={employees} projects={projects} user={user} onChange={loadAll} />}
               {tab === "attendance" && <AttendanceTab attendance={attendance} onChange={loadAll} />}
               {tab === "stores" && <StoresTab stockItems={stockItems} materials={materials} user={user} onChange={loadAll} />}
+              {tab === "vendors" && <VendorsTab vendors={vendors} user={user} onChange={loadAll} />}
+              {tab === "workorders" && <WorkOrdersTab projects={projects} vendors={vendors} workOrders={workOrders} user={user} onChange={loadAll} />}
               {tab === "payments" && <PaymentsTab projects={projects} payments={payments} user={user} onChange={loadAll} />}
               {tab === "dailyreports" && <DailyReportsTab dailyLogs={dailyLogs} />}
               {tab === "users" && <UsersTab profiles={profiles} onChange={loadAll} />}
@@ -128,7 +138,7 @@ export default function AdminDashboard({ user, profile, onLogout }) {
   );
 }
 
-function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
+function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onChange }) {
   const [showNew, setShowNew] = useState(false);
   const [scopeProjectId, setScopeProjectId] = useState(null);
   const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
@@ -298,6 +308,7 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
         <ScopeModal
           project={projects.find((p) => p.id === scopeProjectId)}
           items={scopeItems.filter((s) => s.project_id === scopeProjectId)}
+          employees={employees.filter((e) => e.project_id === scopeProjectId)}
           onClose={() => setScopeProjectId(null)}
           onChange={onChange}
         />
@@ -306,9 +317,12 @@ function ProjectsTab({ projects, supervisors, scopeItems, user, onChange }) {
   );
 }
 
-function ScopeModal({ project, items, onClose, onChange }) {
+function ScopeModal({ project, items, employees, onClose, onChange }) {
   const [text, setText] = useState(project.scope_of_work || "");
   const [newItem, setNewItem] = useState("");
+  const [newAssignee, setNewAssignee] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [newPriority, setNewPriority] = useState("medium");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -319,13 +333,31 @@ function ScopeModal({ project, items, onClose, onChange }) {
 
   async function addItem() {
     if (!newItem.trim()) return;
-    await supabase.from("scope_items").insert({ project_id: project.id, description: newItem.trim() });
-    setNewItem("");
+    await supabase.from("scope_items").insert({
+      project_id: project.id, description: newItem.trim(),
+      assigned_to_employee_id: newAssignee || null, due_date: newDueDate || null, priority: newPriority,
+    });
+    setNewItem(""); setNewAssignee(""); setNewDueDate(""); setNewPriority("medium");
     onChange();
   }
 
   async function toggleItem(id, completed) {
     await supabase.from("scope_items").update({ completed: !completed }).eq("id", id);
+    onChange();
+  }
+
+  async function updateAssignee(id, employeeId) {
+    await supabase.from("scope_items").update({ assigned_to_employee_id: employeeId || null }).eq("id", id);
+    onChange();
+  }
+
+  async function updateDueDate(id, dueDate) {
+    await supabase.from("scope_items").update({ due_date: dueDate || null }).eq("id", id);
+    onChange();
+  }
+
+  async function updatePriority(id, priority) {
+    await supabase.from("scope_items").update({ priority }).eq("id", id);
     onChange();
   }
 
@@ -361,18 +393,19 @@ function ScopeModal({ project, items, onClose, onChange }) {
   }
 
   const done = items.filter((i) => i.completed).length;
+  const priorityColor = { low: "#64748B", medium: "#A16207", high: "#B91C1C" };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ width: 480, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div className="row-between">
-          <h2 className="h2" style={{ color: "var(--ink)" }}>Scope — {project.name}</h2>
+          <h2 className="h2" style={{ color: "var(--ink)" }}>Tasks — {project.name}</h2>
           <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
         </div>
 
         {items.length > 0 && (
           <div className="dash-sub" style={{ marginBottom: 8 }}>
-            Progress is calculated automatically: {done}/{items.length} items checked = {project.completion_percentage}%
+            Progress is calculated automatically: {done}/{items.length} tasks checked = {project.completion_percentage}%
           </div>
         )}
 
@@ -390,20 +423,50 @@ function ScopeModal({ project, items, onClose, onChange }) {
           </div>
         )}
 
-        <label className="field-label" style={{ marginTop: 16 }}>Checklist items</label>
-        {items.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>No items yet — add some below, or just attach a document above.</div>}
-        {items.map((item) => (
-          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
-            <input type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id, item.completed)} />
-            <span style={{ flex: 1, fontSize: 13, textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>
-              {item.description}
-            </span>
-            <button className="icon-btn-sm" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <label className="field-label" style={{ marginTop: 16 }}>Tasks</label>
+        {items.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>No tasks yet — add some below, or just attach a document above.</div>}
+        {items.map((item) => {
+          const assignee = employees.find((e) => e.id === item.assigned_to_employee_id);
+          return (
+            <div key={item.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id, item.completed)} />
+                <span style={{ flex: 1, fontSize: 13, textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>
+                  {item.description}
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: priorityColor[item.priority] || priorityColor.medium, textTransform: "uppercase" }}>{item.priority || "medium"}</span>
+                <button className="icon-btn-sm" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 6, paddingLeft: 24, flexWrap: "wrap" }}>
+                <select className="select-input" style={{ fontSize: 11 }} value={item.assigned_to_employee_id || ""} onChange={(e) => updateAssignee(item.id, e.target.value)}>
+                  <option value="">— Unassigned —</option>
+                  {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+                <input type="date" className="input" style={{ fontSize: 11, width: 140 }} value={item.due_date || ""} onChange={(e) => updateDueDate(item.id, e.target.value)} />
+                <select className="select-input" style={{ fontSize: 11 }} value={item.priority || "medium"} onChange={(e) => updatePriority(item.id, e.target.value)}>
+                  <option value="low">Low priority</option>
+                  <option value="medium">Medium priority</option>
+                  <option value="high">High priority</option>
+                </select>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ marginTop: 12, padding: "10px", background: "var(--paper)", borderRadius: 6 }}>
           <input className="input" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="e.g. Foundation work" onKeyDown={(e) => e.key === "Enter" && addItem()} />
-          <button className="btn btn-primary btn-sm" onClick={addItem}><Plus size={14} /> Add</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <select className="select-input" value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)}>
+              <option value="">— Unassigned —</option>
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <input type="date" className="input" style={{ width: 140 }} value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
+            <select className="select-input" value={newPriority} onChange={(e) => setNewPriority(e.target.value)}>
+              <option value="low">Low priority</option>
+              <option value="medium">Medium priority</option>
+              <option value="high">High priority</option>
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={addItem}><Plus size={14} /> Add task</button>
+          </div>
         </div>
       </div>
     </div>
@@ -633,6 +696,255 @@ export function UsersTab({ profiles, onChange, canManageAccounts }) {
             </select>
             {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
             <button className="btn btn-primary btn-block" disabled={busy} onClick={createUser}>{busy ? "Creating…" : "Create account"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VendorsTab({ vendors, user, onChange }) {
+  const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ name: "", contact_person: "", phone: "", email: "", trade: "", rate: "", rate_unit: "", notes: "" });
+  const [error, setError] = useState("");
+
+  function openEdit(v) {
+    setForm({
+      name: v.name, contact_person: v.contact_person || "", phone: v.phone || "", email: v.email || "",
+      trade: v.trade || "", rate: v.rate || "", rate_unit: v.rate_unit || "", notes: v.notes || "",
+    });
+    setEditingId(v.id);
+  }
+
+  async function save() {
+    if (!form.name.trim()) return;
+    setError("");
+    const payload = { ...form, contact_person: sanitizeName(form.contact_person), phone: sanitizePhone(form.phone), rate: Math.max(0, Number(form.rate) || 0) };
+    const { error: saveError } = editingId
+      ? await supabase.from("vendors").update(payload).eq("id", editingId)
+      : await supabase.from("vendors").insert({ ...payload, created_by: user.id });
+    if (saveError) { setError(saveError.message); return; }
+    setForm({ name: "", contact_person: "", phone: "", email: "", trade: "", rate: "", rate_unit: "", notes: "" });
+    setShowNew(false);
+    setEditingId(null);
+    onChange();
+  }
+
+  async function removeVendor(id, name) {
+    if (!confirm(`Remove "${name}" from your vendor directory? This can't be undone.`)) return;
+    await supabase.from("vendors").delete().eq("id", id);
+    onChange();
+  }
+
+  return (
+    <div>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <span className="dash-sub" style={{ marginBottom: 0 }}>Your directory of subcontractors and outside vendors — Work Orders pull from this list.</span>
+        <button className="btn btn-primary btn-sm" onClick={() => { setForm({ name: "", contact_person: "", phone: "", email: "", trade: "", rate: "", rate_unit: "", notes: "" }); setEditingId(null); setShowNew(true); }}>
+          <Plus size={16} /> Add vendor
+        </button>
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead><tr><th>Name</th><th>Trade</th><th>Contact</th><th>Phone</th><th>Rate</th><th></th></tr></thead>
+          <tbody>
+            {vendors.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>No vendors added yet.</td></tr>}
+            {vendors.map((v) => (
+              <tr key={v.id}>
+                <td><strong>{v.name}</strong></td>
+                <td>{v.trade || "—"}</td>
+                <td>{v.contact_person || "—"}</td>
+                <td>{v.phone || "—"}</td>
+                <td>{v.rate ? `₹${Number(v.rate).toLocaleString()}${v.rate_unit ? ` / ${v.rate_unit}` : ""}` : "—"}</td>
+                <td>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="icon-btn-sm" onClick={() => openEdit(v)}>Edit</button>
+                    <button className="icon-btn-sm" onClick={() => removeVendor(v.id, v.name)}><Trash2 size={13} /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showNew && (
+        <div className="modal-backdrop" onClick={() => { setShowNew(false); setEditingId(null); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h2 className="h2" style={{ color: "var(--ink)" }}>{editingId ? "Edit vendor" : "Add vendor"}</h2>
+              <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => { setShowNew(false); setEditingId(null); }}><X size={18} /></button>
+            </div>
+            <label className="field-label">Vendor / company name</label>
+            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
+            <label className="field-label">Contact person</label>
+            <input className="input" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: sanitizeName(e.target.value) })} />
+            <label className="field-label">Phone</label>
+            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+            <label className="field-label">Email</label>
+            <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <label className="field-label">Trade / specialty</label>
+            <input className="input" value={form.trade} onChange={(e) => setForm({ ...form, trade: e.target.value })} placeholder="e.g. Electrical, Scaffolding" />
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Rate</label>
+                <input type="number" min="0" className="input" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Rate unit</label>
+                <input className="input" value={form.rate_unit} onChange={(e) => setForm({ ...form, rate_unit: e.target.value })} placeholder="e.g. day, unit, sq.ft" />
+              </div>
+            </div>
+            <label className="field-label">Notes</label>
+            <textarea className="textarea" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+            <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={save}>{editingId ? "Save changes" : "Add vendor"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkOrdersTab({ projects, vendors, workOrders, user, onChange }) {
+  const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ project_id: projects[0]?.id || "", vendor_id: "", title: "", description: "", status: "open", cost: "", issued_date: new Date().toISOString().slice(0, 10), due_date: "" });
+  const [error, setError] = useState("");
+
+  const STATUS_LABEL = { open: "Open", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled" };
+  const STATUS_CLASS = { open: "pending", in_progress: "pending", completed: "active", cancelled: "absent" };
+
+  function openEdit(wo) {
+    setForm({
+      project_id: wo.project_id, vendor_id: wo.vendor_id || "", title: wo.title, description: wo.description || "",
+      status: wo.status, cost: wo.cost || "", issued_date: wo.issued_date || "", due_date: wo.due_date || "",
+    });
+    setEditingId(wo.id);
+    setShowNew(true);
+  }
+
+  async function save() {
+    if (!form.title.trim() || !form.project_id) return;
+    setError("");
+    const payload = { ...form, vendor_id: form.vendor_id || null, cost: Math.max(0, Number(form.cost) || 0), due_date: form.due_date || null, updated_at: new Date().toISOString() };
+    const { error: saveError } = editingId
+      ? await supabase.from("work_orders").update(payload).eq("id", editingId)
+      : await supabase.from("work_orders").insert({ ...payload, created_by: user.id });
+    if (saveError) { setError(saveError.message); return; }
+    setForm({ project_id: projects[0]?.id || "", vendor_id: "", title: "", description: "", status: "open", cost: "", issued_date: new Date().toISOString().slice(0, 10), due_date: "" });
+    setShowNew(false);
+    setEditingId(null);
+    onChange();
+  }
+
+  async function removeWorkOrder(id, title) {
+    if (!confirm(`Remove work order "${title}"? This can't be undone.`)) return;
+    await supabase.from("work_orders").delete().eq("id", id);
+    onChange();
+  }
+
+  async function quickSetStatus(id, status) {
+    await supabase.from("work_orders").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    onChange();
+  }
+
+  return (
+    <div>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <span className="dash-sub" style={{ marginBottom: 0 }}>Formal orders issued against a project — optionally to an outside vendor.</span>
+        {projects.length > 0 && (
+          <button className="btn btn-primary btn-sm" onClick={() => { setForm({ project_id: projects[0]?.id || "", vendor_id: "", title: "", description: "", status: "open", cost: "", issued_date: new Date().toISOString().slice(0, 10), due_date: "" }); setEditingId(null); setShowNew(true); }}>
+            <Plus size={16} /> New work order
+          </button>
+        )}
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table className="data-table">
+          <thead><tr><th>Project</th><th>Title</th><th>Vendor</th><th>Cost</th><th>Status</th><th>Due</th><th></th></tr></thead>
+          <tbody>
+            {workOrders.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>No work orders yet.</td></tr>}
+            {workOrders.map((wo) => {
+              const proj = projects.find((p) => p.id === wo.project_id);
+              const vendor = vendors.find((v) => v.id === wo.vendor_id);
+              return (
+                <tr key={wo.id}>
+                  <td>{proj?.name || "—"}</td>
+                  <td><strong>{wo.title}</strong></td>
+                  <td>{vendor?.name || <span className="muted">Internal</span>}</td>
+                  <td>₹{Number(wo.cost || 0).toLocaleString()}</td>
+                  <td>
+                    <select className="select-input" value={wo.status} onChange={(e) => quickSetStatus(wo.id, e.target.value)}>
+                      <option value="open">Open</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </td>
+                  <td>{wo.due_date || "—"}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="icon-btn-sm" onClick={() => openEdit(wo)}>Edit</button>
+                      <button className="icon-btn-sm" onClick={() => removeWorkOrder(wo.id, wo.title)}><Trash2 size={13} /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {showNew && (
+        <div className="modal-backdrop" onClick={() => { setShowNew(false); setEditingId(null); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h2 className="h2" style={{ color: "var(--ink)" }}>{editingId ? "Edit work order" : "New work order"}</h2>
+              <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => { setShowNew(false); setEditingId(null); }}><X size={18} /></button>
+            </div>
+            <label className="field-label">Project</label>
+            <select className="select-input" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })}>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <label className="field-label">Title</label>
+            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Electrical wiring — Level 2" autoFocus />
+            <label className="field-label">Description</label>
+            <textarea className="textarea" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <label className="field-label">Vendor (optional — leave unassigned for internal work)</label>
+            <select className="select-input" value={form.vendor_id} onChange={(e) => setForm({ ...form, vendor_id: e.target.value })}>
+              <option value="">— Internal / no vendor —</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.trade ? ` — ${v.trade}` : ""}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Cost</label>
+                <input type="number" min="0" className="input" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Status</label>
+                <select className="select-input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Issued date</label>
+                <input type="date" className="input" value={form.issued_date} onChange={(e) => setForm({ ...form, issued_date: e.target.value })} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">Due date</label>
+                <input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+              </div>
+            </div>
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+            <button className="btn btn-primary btn-block" disabled={!form.title.trim()} onClick={save}>{editingId ? "Save changes" : "Create work order"}</button>
           </div>
         </div>
       )}
