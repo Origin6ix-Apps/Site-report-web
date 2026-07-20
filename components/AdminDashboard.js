@@ -142,7 +142,9 @@ function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onCha
   const [showNew, setShowNew] = useState(false);
   const [scopeProjectId, setScopeProjectId] = useState(null);
   const [form, setForm] = useState({ name: "", client: "", location: "", point_of_contact: "", point_of_contact_phone: "", deadline: "", scope_of_work: "", assigned_supervisor_id: "" });
+  const [editingRowId, setEditingRowId] = useState(null);
   const [drafts, setDrafts] = useState({});
+  const [savedFlashId, setSavedFlashId] = useState(null);
   const [error, setError] = useState("");
 
   async function createProject() {
@@ -176,6 +178,23 @@ function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onCha
     setScopeProjectId(data.id);
   }
 
+  function startEdit(p) {
+    setDrafts((d) => ({
+      ...d,
+      [p.id]: {
+        name: p.name, client: p.client, location: p.location,
+        point_of_contact: p.point_of_contact, point_of_contact_phone: p.point_of_contact_phone,
+        deadline: p.deadline, assigned_supervisor_id: p.assigned_supervisor_id,
+      },
+    }));
+    setEditingRowId(p.id);
+  }
+
+  function cancelEdit(id) {
+    setDrafts((d) => { const next = { ...d }; delete next[id]; return next; });
+    setEditingRowId(null);
+  }
+
   function draftValue(p, field) {
     return drafts[p.id]?.[field] !== undefined ? drafts[p.id][field] : p[field];
   }
@@ -186,7 +205,10 @@ function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onCha
     if (!drafts[id]) return;
     await supabase.from("projects").update(drafts[id]).eq("id", id);
     setDrafts((d) => { const next = { ...d }; delete next[id]; return next; });
+    setEditingRowId(null);
     onChange();
+    setSavedFlashId(id);
+    setTimeout(() => setSavedFlashId((cur) => (cur === id ? null : cur)), 2500);
   }
 
   async function deleteProject(id) {
@@ -211,54 +233,84 @@ function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onCha
           </thead>
           <tbody>
             {projects.map((p) => {
-              const hasDraft = !!drafts[p.id];
+              const isEditing = editingRowId === p.id;
+              const items = scopeItems.filter((s) => s.project_id === p.id);
               return (
                 <tr key={p.id}>
                   <td>
-                    <button onClick={() => setScopeProjectId(p.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }} title="Manage scope of work">
-                      <strong style={{ color: "var(--blue)", textDecoration: "underline" }}>{p.name}</strong>
-                    </button>
-                    {p.scope_of_work && (
-                      <div className="muted" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.scope_of_work}>
-                        {p.scope_of_work}
+                    {isEditing ? (
+                      <input className="input" style={{ minWidth: 140 }} value={draftValue(p, "name")} onChange={(e) => setDraft(p.id, "name", e.target.value)} />
+                    ) : (
+                      <>
+                        <button onClick={() => setScopeProjectId(p.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }} title="Manage scope of work">
+                          <strong style={{ color: "var(--blue)", textDecoration: "underline" }}>{p.name}</strong>
+                        </button>
+                        {p.scope_of_work && (
+                          <div className="muted" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.scope_of_work}>
+                            {p.scope_of_work}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {savedFlashId === p.id && <div style={{ color: "#15803D", fontSize: 11, fontWeight: 700, marginTop: 4 }}>✓ Saved</div>}
+                  </td>
+                  <td>
+                    {isEditing ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 160 }}>
+                        <input className="input" placeholder="Client" value={draftValue(p, "client") || ""} onChange={(e) => setDraft(p.id, "client", e.target.value)} />
+                        <input className="input" placeholder="Point of contact" value={draftValue(p, "point_of_contact") || ""} onChange={(e) => setDraft(p.id, "point_of_contact", sanitizeName(e.target.value))} />
+                        <input className="input" placeholder="Contact phone" value={draftValue(p, "point_of_contact_phone") || ""} onChange={(e) => setDraft(p.id, "point_of_contact_phone", sanitizePhone(e.target.value))} />
                       </div>
+                    ) : (
+                      <>{p.client}{p.point_of_contact ? ` · ${p.point_of_contact}` : ""}{p.point_of_contact_phone ? ` · ${p.point_of_contact_phone}` : ""}</>
                     )}
                   </td>
-                  <td>{p.client}{p.point_of_contact ? ` · ${p.point_of_contact}` : ""}{p.point_of_contact_phone ? ` · ${p.point_of_contact_phone}` : ""}</td>
-                  <td>{p.location}</td>
                   <td>
-                    <input type="date" className="select-input" value={draftValue(p, "deadline") || ""} onChange={(e) => setDraft(p.id, "deadline", e.target.value)} />
+                    {isEditing ? (
+                      <input className="input" style={{ minWidth: 120 }} value={draftValue(p, "location") || ""} onChange={(e) => setDraft(p.id, "location", e.target.value)} />
+                    ) : p.location}
                   </td>
                   <td>
-                    <select className="select-input" value={draftValue(p, "assigned_supervisor_id") || ""} onChange={(e) => setDraft(p.id, "assigned_supervisor_id", e.target.value || null)}>
-                      <option value="">— Unassigned —</option>
-                      {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
-                    </select>
+                    {isEditing ? (
+                      <input type="date" className="select-input" value={draftValue(p, "deadline") || ""} onChange={(e) => setDraft(p.id, "deadline", e.target.value)} />
+                    ) : (p.deadline || <span className="muted">—</span>)}
+                  </td>
+                  <td>
+                    {isEditing ? (
+                      <select className="select-input" value={draftValue(p, "assigned_supervisor_id") || ""} onChange={(e) => setDraft(p.id, "assigned_supervisor_id", e.target.value || null)}>
+                        <option value="">— Unassigned —</option>
+                        {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+                      </select>
+                    ) : (
+                      supervisors.find((s) => s.id === p.assigned_supervisor_id)
+                        ? (supervisors.find((s) => s.id === p.assigned_supervisor_id).full_name || supervisors.find((s) => s.id === p.assigned_supervisor_id).email)
+                        : <span className="muted">Unassigned</span>
+                    )}
                   </td>
                   <td style={{ minWidth: 130 }}>
                     <div className="progress-track"><div className="progress-fill" style={{ width: `${p.completion_percentage}%` }} /></div>
-                    {(() => {
-                      const items = scopeItems.filter((s) => s.project_id === p.id);
-                      if (items.length > 0) {
-                        const done = items.filter((s) => s.completed).length;
-                        return <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · {done}/{items.length} scope items done</div>;
-                      }
-                      return <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · no scope items yet</div>;
-                    })()}
+                    {items.length > 0 ? (
+                      <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · {items.filter((s) => s.completed).length}/{items.length} Tasks Completed</div>
+                    ) : (
+                      <div className="muted" style={{ marginTop: 6, fontSize: 11 }}>{p.completion_percentage}% · no tasks yet</div>
+                    )}
                   </td>
                   <td>
                     <span className={`status-pill ${p.status === "completed" ? "active" : "pending"}`}>{p.status === "completed" ? "Completed" : "Active"}</span>
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        style={{ opacity: hasDraft ? 1 : 0.4, cursor: hasDraft ? "pointer" : "not-allowed", padding: "4px 10px", fontSize: 11 }}
-                        disabled={!hasDraft} onClick={() => saveRow(p.id)}
-                      >
-                        Update
-                      </button>
-                      <button className="icon-btn-sm" onClick={() => deleteProject(p.id)}><Trash2 size={13} /></button>
+                      {isEditing ? (
+                        <>
+                          <button className="btn btn-primary btn-sm" style={{ padding: "4px 10px", fontSize: 11 }} onClick={() => saveRow(p.id)}>Update</button>
+                          <button className="icon-btn-sm" onClick={() => cancelEdit(p.id)}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="icon-btn-sm" onClick={() => startEdit(p)}>Edit</button>
+                          <button className="icon-btn-sm" onClick={() => deleteProject(p.id)}><Trash2 size={13} /></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
