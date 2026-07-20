@@ -198,19 +198,16 @@ function MyProjectsTab({ projects, employees, scopeItems, onChange }) {
               <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Tasks</div>
                 {items.map((item) => {
-                  const assignee = team.find((e) => e.id === item.assigned_to_employee_id);
-                  const priorityColor = { low: "#64748B", medium: "#A16207", high: "#B91C1C" }[item.priority] || "#A16207";
+                  const priorityColor = { low: "#22C55E", medium: "#F59E0B", high: "#EF4444" }[item.priority] || "#F59E0B";
                   return (
-                    <div key={item.id} style={{ padding: "4px 0" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, flex: 1 }}>
                         <input type="checkbox" checked={item.completed} onChange={() => toggleScopeItem(item.id, item.completed)} />
                         <span style={{ textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>{item.description}</span>
                       </label>
-                      <div style={{ display: "flex", gap: 8, paddingLeft: 22, fontSize: 10.5, color: "var(--muted)" }}>
-                        {assignee && <span>Assigned: {assignee.name}</span>}
-                        {item.due_date && <span>Due {item.due_date}</span>}
-                        <span style={{ color: priorityColor, fontWeight: 700, textTransform: "uppercase" }}>{item.priority || "medium"}</span>
-                      </div>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", textTransform: "uppercase", background: priorityColor, borderRadius: 10, padding: "2px 7px" }}>
+                        {item.priority || "medium"}
+                      </span>
                     </div>
                   );
                 })}

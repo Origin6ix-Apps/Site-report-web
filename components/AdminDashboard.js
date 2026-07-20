@@ -369,53 +369,76 @@ function ProjectsTab({ projects, supervisors, scopeItems, employees, user, onCha
   );
 }
 
+const PRIORITY_COLORS = { high: "#EF4444", medium: "#F59E0B", low: "#22C55E" };
+const PRIORITY_LABELS = { high: "High Priority", medium: "Medium Priority", low: "Low Priority" };
+
 function ScopeModal({ project, items, employees, onClose, onChange }) {
   const [text, setText] = useState(project.scope_of_work || "");
-  const [newItem, setNewItem] = useState("");
-  const [newAssignee, setNewAssignee] = useState("");
-  const [newDueDate, setNewDueDate] = useState("");
-  const [newPriority, setNewPriority] = useState("medium");
+  const [localItems, setLocalItems] = useState(items.map((i) => ({ ...i })));
+  const [newTaskName, setNewTaskName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const [error, setError] = useState("");
+  const nameInputRef = useRef(null);
+
+  const done = localItems.filter((i) => i.completed).length;
+  const livePercent = localItems.length > 0 ? Math.round((done / localItems.length) * 100) : project.completion_percentage;
 
   async function saveText() {
     await supabase.from("projects").update({ scope_of_work: text }).eq("id", project.id);
     onChange();
   }
 
-  async function addItem() {
-    if (!newItem.trim()) return;
-    await supabase.from("scope_items").insert({
-      project_id: project.id, description: newItem.trim(),
-      assigned_to_employee_id: newAssignee || null, due_date: newDueDate || null, priority: newPriority,
-    });
-    setNewItem(""); setNewAssignee(""); setNewDueDate(""); setNewPriority("medium");
-    onChange();
+  function addTask() {
+    if (!newTaskName.trim()) return;
+    setLocalItems((prev) => [...prev, { id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, description: newTaskName.trim(), completed: false, priority: "medium", isNew: true }]);
+    setNewTaskName("");
+    nameInputRef.current?.focus();
   }
 
-  async function toggleItem(id, completed) {
-    await supabase.from("scope_items").update({ completed: !completed }).eq("id", id);
-    onChange();
+  function toggleLocal(id) {
+    setLocalItems((prev) => prev.map((i) => (i.id === id ? { ...i, completed: !i.completed } : i)));
   }
 
-  async function updateAssignee(id, employeeId) {
-    await supabase.from("scope_items").update({ assigned_to_employee_id: employeeId || null }).eq("id", id);
-    onChange();
+  function cyclePriority(id) {
+    const order = ["low", "medium", "high"];
+    setLocalItems((prev) => prev.map((i) => {
+      if (i.id !== id) return i;
+      const next = order[(order.indexOf(i.priority || "medium") + 1) % order.length];
+      return { ...i, priority: next };
+    }));
   }
 
-  async function updateDueDate(id, dueDate) {
-    await supabase.from("scope_items").update({ due_date: dueDate || null }).eq("id", id);
-    onChange();
+  function removeLocal(id) {
+    setLocalItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  async function updatePriority(id, priority) {
-    await supabase.from("scope_items").update({ priority }).eq("id", id);
-    onChange();
-  }
+  async function handleUpdate() {
+    setSaving(true);
+    setError("");
+    try {
+      const removedIds = items.filter((orig) => !localItems.some((li) => li.id === orig.id)).map((o) => o.id);
+      const newOnes = localItems.filter((li) => li.isNew);
+      const changedExisting = localItems.filter((li) => !li.isNew).filter((li) => {
+        const orig = items.find((o) => o.id === li.id);
+        return orig && (orig.completed !== li.completed || orig.priority !== li.priority || orig.description !== li.description);
+      });
 
-  async function removeItem(id) {
-    await supabase.from("scope_items").delete().eq("id", id);
-    onChange();
+      await Promise.all([
+        ...removedIds.map((id) => supabase.from("scope_items").delete().eq("id", id)),
+        ...newOnes.map((ni) => supabase.from("scope_items").insert({ project_id: project.id, description: ni.description, completed: ni.completed, priority: ni.priority })),
+        ...changedExisting.map((ec) => supabase.from("scope_items").update({ completed: ec.completed, priority: ec.priority, description: ec.description }).eq("id", ec.id)),
+      ]);
+
+      await onChange();
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+    } catch (err) {
+      setError(err.message || "Something went wrong saving tasks.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleUpload(e) {
@@ -444,20 +467,17 @@ function ScopeModal({ project, items, employees, onClose, onChange }) {
     onChange();
   }
 
-  const done = items.filter((i) => i.completed).length;
-  const priorityColor = { low: "#64748B", medium: "#A16207", high: "#B91C1C" };
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ width: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width: 520, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div className="row-between">
           <h2 className="h2" style={{ color: "var(--ink)" }}>Tasks — {project.name}</h2>
           <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
         </div>
 
-        {items.length > 0 && (
+        {localItems.length > 0 && (
           <div className="dash-sub" style={{ marginBottom: 8 }}>
-            Progress is calculated automatically: {done}/{items.length} tasks checked = {project.completion_percentage}%
+            {done}/{localItems.length} tasks checked = {livePercent}% — click Update below to save
           </div>
         )}
 
@@ -467,7 +487,6 @@ function ScopeModal({ project, items, employees, onClose, onChange }) {
         <label className="field-label">Attach a scope document</label>
         <input type="file" accept=".pdf,.doc,.docx,image/*" onChange={handleUpload} disabled={uploading} />
         {uploading && <div className="muted" style={{ marginTop: 4 }}>Uploading…</div>}
-        {error && <div className="error-box" style={{ marginTop: 8 }}>{error}</div>}
         {project.scope_document_url && (
           <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10 }}>
             <a href={project.scope_document_url} target="_blank" rel="noreferrer">View uploaded document</a>
@@ -476,50 +495,42 @@ function ScopeModal({ project, items, employees, onClose, onChange }) {
         )}
 
         <label className="field-label" style={{ marginTop: 16 }}>Tasks</label>
-        {items.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>No tasks yet — add some below, or just attach a document above.</div>}
-        {items.map((item) => {
-          const assignee = employees.find((e) => e.id === item.assigned_to_employee_id);
-          return (
-            <div key={item.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id, item.completed)} />
-                <span style={{ flex: 1, fontSize: 13, textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>
-                  {item.description}
-                </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: priorityColor[item.priority] || priorityColor.medium, textTransform: "uppercase" }}>{item.priority || "medium"}</span>
-                <button className="icon-btn-sm" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 6, paddingLeft: 24, flexWrap: "wrap" }}>
-                <select className="select-input" style={{ fontSize: 11 }} value={item.assigned_to_employee_id || ""} onChange={(e) => updateAssignee(item.id, e.target.value)}>
-                  <option value="">— Unassigned —</option>
-                  {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-                <input type="date" className="input" style={{ fontSize: 11, width: 140 }} value={item.due_date || ""} onChange={(e) => updateDueDate(item.id, e.target.value)} />
-                <select className="select-input" style={{ fontSize: 11 }} value={item.priority || "medium"} onChange={(e) => updatePriority(item.id, e.target.value)}>
-                  <option value="low">Low priority</option>
-                  <option value="medium">Medium priority</option>
-                  <option value="high">High priority</option>
-                </select>
-              </div>
-            </div>
-          );
-        })}
-        <div style={{ marginTop: 12, padding: "10px", background: "var(--paper)", borderRadius: 6 }}>
-          <input className="input" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="e.g. Foundation work" onKeyDown={(e) => e.key === "Enter" && addItem()} />
-          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <select className="select-input" value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)}>
-              <option value="">— Unassigned —</option>
-              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-            <input type="date" className="input" style={{ width: 140 }} value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
-            <select className="select-input" value={newPriority} onChange={(e) => setNewPriority(e.target.value)}>
-              <option value="low">Low priority</option>
-              <option value="medium">Medium priority</option>
-              <option value="high">High priority</option>
-            </select>
-            <button className="btn btn-primary btn-sm" onClick={addItem}><Plus size={14} /> Add task</button>
+        {localItems.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>No tasks yet — add one below.</div>}
+        {localItems.map((item) => (
+          <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
+            <input type="checkbox" checked={item.completed} onChange={() => toggleLocal(item.id)} />
+            <span style={{ flex: 1, fontSize: 13, textDecoration: item.completed ? "line-through" : "none", color: item.completed ? "var(--muted)" : "var(--ink)" }}>
+              {item.description}
+            </span>
+            <button
+              onClick={() => cyclePriority(item.id)}
+              title="Click to change priority"
+              style={{
+                fontSize: 10, fontWeight: 700, color: "#fff", textTransform: "uppercase",
+                background: PRIORITY_COLORS[item.priority || "medium"], border: "none", borderRadius: 10,
+                padding: "3px 8px", cursor: "pointer",
+              }}
+            >
+              {item.priority || "medium"}
+            </button>
+            <button className="icon-btn-sm" onClick={() => removeLocal(item.id)}><Trash2 size={12} /></button>
           </div>
+        ))}
+
+        <div style={{ marginTop: 10 }}>
+          <label className="field-label">Task name</label>
+          <input
+            ref={nameInputRef} className="input" value={newTaskName}
+            onChange={(e) => setNewTaskName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+            placeholder="e.g. Foundation work"
+          />
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={addTask}><Plus size={14} /> Add Task</button>
         </div>
+
+        {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+        {savedFlash && <div style={{ color: "#15803D", fontSize: 12, fontWeight: 700, marginTop: 10 }}>✓ Saved</div>}
+        <button className="btn btn-primary btn-block" style={{ marginTop: 14 }} disabled={saving} onClick={handleUpdate}>{saving ? "Saving…" : "Update"}</button>
       </div>
     </div>
   );
