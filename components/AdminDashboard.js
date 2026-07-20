@@ -1629,7 +1629,6 @@ export function ClientManagementTab({ prospects, supervisors, user, onChange }) 
       {showConvertId && (
         <ConvertProspectModal
           prospect={qualified.find((p) => p.id === showConvertId)}
-          supervisors={supervisors}
           user={user}
           onClose={() => setShowConvertId(null)}
           onChange={onChange}
@@ -1770,9 +1769,8 @@ function QuoteModal({ prospect, onClose, onChange }) {
   );
 }
 
-function ConvertProspectModal({ prospect, supervisors, user, onClose, onChange }) {
+function ConvertProspectModal({ prospect, user, onClose, onChange }) {
   const [projectName, setProjectName] = useState(prospect.business_name);
-  const [supervisorId, setSupervisorId] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1789,7 +1787,7 @@ function ConvertProspectModal({ prospect, supervisors, user, onClose, onChange }
         point_of_contact: prospect.contact_person,
         point_of_contact_phone: prospect.phone,
         contract_value: prospect.estimated_value,
-        assigned_supervisor_id: supervisorId || null,
+        assigned_supervisor_id: null,
         owner_id: user.id,
       })
       .select()
@@ -1810,15 +1808,10 @@ function ConvertProspectModal({ prospect, supervisors, user, onClose, onChange }
           <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={onClose}><X size={18} /></button>
         </div>
         <div className="dash-sub" style={{ marginBottom: 12 }}>
-          Client, contact info, and estimated value (₹{Number(prospect.estimated_value).toLocaleString()}) carry over automatically as the contract value.
+          Client, contact info, and estimated value (₹{Number(prospect.estimated_value).toLocaleString()}) carry over automatically as the contract value. This project will appear in Admin's Projects list, unassigned — Admin picks the Supervisor and takes it from here.
         </div>
         <label className="field-label">Project name</label>
         <input className="input" value={projectName} onChange={(e) => setProjectName(e.target.value)} autoFocus />
-        <label className="field-label">Assign Supervisor</label>
-        <select className="select-input" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)}>
-          <option value="">— Unassigned —</option>
-          {supervisors.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
-        </select>
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy || !projectName.trim()} onClick={convert}>{busy ? "Creating…" : "Create project from this client"}</button>
       </div>
