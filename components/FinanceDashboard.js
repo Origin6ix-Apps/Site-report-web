@@ -244,6 +244,10 @@ function InvoicesTab({ projects, workOrders, invoices, user, onChange }) {
 }
 
 function StoreAccountsTab({ stockItems, materials, user, onChange }) {
+  const [showNew, setShowNew] = useState(false);
+  const [form, setForm] = useState({ name: "", quantity: "", unit: "", unit_price: "" });
+  const [error, setError] = useState("");
+
   function usedFor(name) {
     return materials.filter((m) => m.name === name).reduce((sum, m) => sum + (Number(m.used) || 0), 0);
   }
@@ -253,14 +257,31 @@ function StoreAccountsTab({ stockItems, materials, user, onChange }) {
     onChange();
   }
 
+  async function addMaterial() {
+    if (!form.name.trim()) return;
+    setError("");
+    const { error: insertError } = await supabase.from("stock_items").insert({
+      name: form.name.trim(), quantity: Math.max(0, Number(form.quantity) || 0), unit: form.unit, unit_price: Math.max(0, Number(form.unit_price) || 0), added_by: user.id,
+    });
+    if (insertError) { setError(insertError.message); return; }
+    setForm({ name: "", quantity: "", unit: "", unit_price: "" });
+    setShowNew(false);
+    onChange();
+  }
+
+  const previewValue = (Number(form.quantity) || 0) * (Number(form.unit_price) || 0);
+
   const totalStockValue = stockItems.reduce((sum, s) => sum + Number(s.quantity || 0) * Number(s.unit_price || 0), 0);
   const totalUsedValue = stockItems.reduce((sum, s) => sum + usedFor(s.name) * Number(s.unit_price || 0), 0);
   const totalRemainingValue = totalStockValue - totalUsedValue;
 
   return (
     <div>
-      <div className="dash-sub" style={{ marginBottom: 12 }}>
-        Admin and Supervisor only see stock in units — this shows what that stock is actually worth in money. Unit price can be set here or from Admin's Stores tab; either way it's the same number everywhere.
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <span className="dash-sub" style={{ marginBottom: 0 }}>
+          Admin and Supervisor only see stock in units — this shows what that stock is actually worth in money. Unit price can be set here or from Admin's Stores tab; either way it's the same number everywhere.
+        </span>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)}><Plus size={16} /> Add material</button>
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
@@ -275,34 +296,66 @@ function StoreAccountsTab({ stockItems, materials, user, onChange }) {
             <tr><th>Material</th><th>Units in Stock</th><th>Unit Price</th><th>Total Stock Value</th><th>Used (units)</th><th>Used Value</th><th>Remaining (units)</th><th>Remaining Value</th></tr>
           </thead>
           <tbody>
-            {stockItems.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No stock items set up yet — add them from Admin's Stores tab, or set pricing here once they exist.</td></tr>}
-            {stockItems.map((s) => {
-              const used = usedFor(s.name);
-              const remaining = s.quantity - used;
-              const unitPrice = Number(s.unit_price || 0);
-              return (
-                <tr key={s.id}>
-                  <td><strong>{s.name}</strong></td>
-                  <td>{s.quantity} {s.unit || ""}</td>
-                  <td>
-                    ₹<input
-                      type="number" min="0" defaultValue={unitPrice}
-                      onBlur={(e) => { const v = Number(e.target.value); if (v !== unitPrice) updateUnitPrice(s.id, v); }}
-                      style={{ width: 80, border: "1px solid var(--line)", borderRadius: 3, padding: "3px 6px", fontSize: 12 }}
-                    />
-                  </td>
-                  <td>₹{(s.quantity * unitPrice).toLocaleString()}</td>
-                  <td>{used} {s.unit || ""}</td>
-                  <td>₹{(used * unitPrice).toLocaleString()}</td>
-                  <td>{remaining} {s.unit || ""}</td>
-                  <td style={{ color: remaining <= 0 ? "#B91C1C" : "#15803D", fontWeight: 700 }}>₹{(remaining * unitPrice).toLocaleString()}</td>
-                </tr>
-              );
-            })}
+            {stockItems.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>No stock items set up yet — add one above, or from Admin's Stores tab.</td></tr>}
+            {stockItems.map((s) => (
+              <StoreAccountRow key={s.id} item={s} used={usedFor(s.name)} onUpdatePrice={updateUnitPrice} />
+            ))}
           </tbody>
         </table>
       </div>
+
+      {showNew && (
+        <div className="modal-backdrop" onClick={() => setShowNew(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between">
+              <h2 className="h2" style={{ color: "var(--ink)" }}>Add material</h2>
+              <button className="icon-btn" style={{ color: "var(--ink)" }} onClick={() => setShowNew(false)}><X size={18} /></button>
+            </div>
+            <label className="field-label">Material name</label>
+            <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cement bags" autoFocus />
+            <label className="field-label">Units in stock</label>
+            <input type="number" min="0" className="input" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+            <label className="field-label">Unit</label>
+            <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="e.g. bags, tons, pieces" />
+            <label className="field-label">Unit price (₹)</label>
+            <input type="number" min="0" className="input" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} />
+            <div className="card" style={{ marginTop: 12, background: "var(--paper)" }}>
+              <div className="card-head" style={{ marginBottom: 4 }}>Total Stock Value</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--blue)" }}>₹{previewValue.toLocaleString()}</div>
+              <div className="muted" style={{ fontSize: 11 }}>Updates automatically as you type — units × unit price.</div>
+            </div>
+            {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
+            <button className="btn btn-primary btn-block" disabled={!form.name.trim()} onClick={addMaterial}>Add material</button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function StoreAccountRow({ item, used, onUpdatePrice }) {
+  const [draftPrice, setDraftPrice] = useState(item.unit_price || 0);
+  const unitPrice = Number(draftPrice) || 0;
+  const remaining = item.quantity - used;
+
+  return (
+    <tr>
+      <td><strong>{item.name}</strong></td>
+      <td>{item.quantity} {item.unit || ""}</td>
+      <td>
+        ₹<input
+          type="number" min="0" value={draftPrice}
+          onChange={(e) => setDraftPrice(e.target.value)}
+          onBlur={(e) => { const v = Number(e.target.value); if (v !== Number(item.unit_price || 0)) onUpdatePrice(item.id, v); }}
+          style={{ width: 80, border: "1px solid var(--line)", borderRadius: 3, padding: "3px 6px", fontSize: 12 }}
+        />
+      </td>
+      <td>₹{(item.quantity * unitPrice).toLocaleString()}</td>
+      <td>{used} {item.unit || ""}</td>
+      <td>₹{(used * unitPrice).toLocaleString()}</td>
+      <td>{remaining} {item.unit || ""}</td>
+      <td style={{ color: remaining <= 0 ? "#B91C1C" : "#15803D", fontWeight: 700 }}>₹{(remaining * unitPrice).toLocaleString()}</td>
+    </tr>
   );
 }
 
